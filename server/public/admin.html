@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Veyro</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2339FF88' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4l6.5 16L12 13l2.5 7L21 4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4l6.5 16L12 13l2.5 7L21 4"/></svg>
+      <span>Veyro</span>
+    </a>
+    <button class="burger" id="burger" aria-label="Menu">☰</button>
+    <nav class="nav" id="nav"></nav>
+    <div class="header-right" id="header-right"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="page-head row-between">
+    <div>
+      <div class="eyebrow">Administration</div>
+      <h1 class="h-page">Key management.</h1>
+      <div class="h-sub" id="sub">Only visible to admins. Every action goes through the backend and is written to the database.</div>
+    </div>
+    <button class="btn" id="refresh">REFRESH ALL</button>
+  </div>
+
+  <div class="grid grid-4" id="stats"></div>
+
+  <div class="card mt">
+    <div class="card-h">Generate keys</div>
+    <div class="row">
+      <div>
+        <label class="label">Duration</label>
+        <select class="field" id="dur" style="width:160px"></select>
+      </div>
+      <div>
+        <label class="label">Quantity (1–20)</label>
+        <input class="field" id="qty" type="number" min="1" max="20" value="1" style="width:90px">
+      </div>
+      <button class="btn btn-primary" id="gen" style="margin-top:22px">GENERATE</button>
+    </div>
+    <div class="row mt8" id="genout"></div>
+  </div>
+
+  <div class="card mt">
+    <div class="card-h row-between">
+      <span>All keys</span>
+      <div class="row">
+        <input class="field" id="q" placeholder="Search code or owner" style="width:210px">
+        <select class="field" id="fstatus" style="width:130px">
+          <option value="">ALL</option>
+          <option value="AVAILABLE">AVAILABLE</option>
+          <option value="ACTIVE">ACTIVE</option>
+          <option value="IN_USE">IN USE</option>
+          <option value="EXPIRED">EXPIRED</option>
+          <option value="REVOKED">REVOKED</option>
+        </select>
+      </div>
+    </div>
+    <div id="keysout"><div class="empty">Loading…</div></div>
+  </div>
+
+  <div class="card mt">
+    <div class="card-h">Users</div>
+    <div id="usersout"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+
+<div class="toast-box"></div>
+<script src="site.js"></script>
+<script>
+SITE.boot('admin.html').then(async () => {
+  if (!SITE.me) return;
+  if (!SITE.me.admin) {
+    document.querySelector('.wrap').innerHTML = '<div class="empty" style="padding:60px 0">You do not have administrator rights.</div>';
+    return;
+  }
+  const dur = document.getElementById('dur');
+  DUR_OPTIONS.forEach(([id, label]) => {
+    const o = document.createElement('option');
+    o.value = id; o.textContent = label;
+    dur.appendChild(o);
+  });
+
+  const refresh = async () => {
+    document.getElementById('keysout').innerHTML = '<div class="empty">Loading…</div>';
+    document.getElementById('usersout').innerHTML = '<div class="empty">Loading…</div>';
+    let u = null;
+    try {
+      u = await SITE.api('/admin/users');
+    } catch (e) {
+      document.getElementById('keysout').innerHTML = '<div class="empty">Server unreachable.</div>';
+      document.getElementById('usersout').innerHTML = '';
+      return;
+    }
+    const stats = document.getElementById('stats');
+    stats.innerHTML = '';
+    const mk = (n, l, cls) => {
+      const d = document.createElement('div');
+      d.className = 'stat';
+      d.innerHTML = '<div class="n">' + n + '</div><div class="l ' + cls + '">' + l + '</div>';
+      stats.appendChild(d);
+    };
+    mk(u.keys.total, 'Total keys', '');
+    mk(u.keys.AVAILABLE, 'Available', 'g');
+    mk(u.keys.ACTIVE + u.keys.IN_USE, 'Activated', 'v');
+    mk(u.keys.REVOKED, 'Revoked', 'r');
+    loadKeys();
+    renderUsers(u.users);
+  };
+
+  const loadKeys = async () => {
+    try {
+      const q = document.getElementById('q').value.trim();
+      const st = document.getElementById('fstatus').value;
+      const url = '/admin/keys' + (q ? '?q=' + encodeURIComponent(q) : '') + (st ? (q ? '&' : '?') + 'status=' + st : '');
+      const r = await SITE.api(url);
+      renderKeys(r.keys || []);
+    } catch (e) {
+      document.getElementById('keysout').innerHTML = '<div class="empty">Server unreachable.</div>';
+    }
+  };
+
+  const renderKeys = (keys) => {
+    const out = document.getElementById('keysout');
+    out.innerHTML = '';
+    if (!keys.length) { out.innerHTML = '<div class="empty">No keys match.</div>'; return; }
+    const wrap = document.createElement('div');
+    wrap.className = 'tbl-wrap';
+    const tbl = document.createElement('table');
+    tbl.className = 'tbl';
+    tbl.innerHTML = '<thead><tr><th>Key</th><th>Duration</th><th>Status</th><th>Owner</th><th>Created</th><th>Expires</th><th>Device</th><th></th></tr></thead>';
+    const tb = document.createElement('tbody');
+    keys.forEach(k => {
+      const tr = document.createElement('tr');
+      const owner = k.owner ? uName(k.owner) : '—';
+      tr.innerHTML = '<td class="mono">' + SITE.esc(k.code) + '</td>' +
+        '<td>' + SITE.esc(k.durationLabel) + '</td>' +
+        '<td></td>' +
+        '<td>' + SITE.esc(owner) + '</td>' +
+        '<td style="font-size:12px" class="faint">' + SITE.esc(SITE.fmtDate(k.createdAt)) + '</td>' +
+        '<td style="font-size:12px">' + (k.expiresAt === null ? '<span class="chip green">NEVER</span>' : SITE.fmtDate(k.expiresAt)) + '</td>' +
+        '<td class="mono" style="font-size:11.5px">' + SITE.esc(k.deviceId || '—') + '</td>' +
+        '<td class="act"></td>';
+      tr.children[2].appendChild(SITE.statusChip(k.status));
+      const acts = tr.children[7];
+      const cp = document.createElement('button');
+      cp.className = 'btn btn-sm';
+      cp.textContent = 'COPY';
+      cp.addEventListener('click', () => SITE.copy(k.code));
+      acts.appendChild(cp);
+      if (k.status === 'REVOKED') {
+        const un = document.createElement('button');
+        un.className = 'btn btn-sm btn-primary';
+        un.textContent = 'UN-REVOKE';
+        un.addEventListener('click', async () => {
+          await SITE.api('/admin/keys/unrevoke', 'POST', { id: k.id });
+          SITE.toast('Key restored.', 'good');
+          loadKeys();
+        });
+        acts.appendChild(un);
+      } else {
+        const rv = document.createElement('button');
+        rv.className = 'btn btn-sm btn-danger';
+        rv.textContent = 'REVOKE';
+        rv.addEventListener('click', async () => {
+          await SITE.api('/admin/keys/revoke', 'POST', { id: k.id });
+          SITE.toast('Key revoked — it stops working immediately.', 'good');
+          loadKeys();
+        });
+        acts.appendChild(rv);
+      }
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb);
+    wrap.appendChild(tbl);
+    out.appendChild(wrap);
+  };
+
+  let users = [];
+  const uName = (id) => {
+    const u = users.find(x => x.id === id);
+    return u ? (u.name || u.email) : id;
+  };
+
+  const renderUsers = (list) => {
+    users = list;
+    const out = document.getElementById('usersout');
+    out.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'tbl-wrap';
+    const tbl = document.createElement('table');
+    tbl.className = 'tbl';
+    tbl.innerHTML = '<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Keys</th><th>Member since</th><th></th></tr></thead>';
+    const tb = document.createElement('tbody');
+    list.forEach(u => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + SITE.esc(u.name) + '</td>' +
+        '<td>' + SITE.esc(u.email) + '</td>' +
+        '<td></td>' +
+        '<td>' + u.keyCount + ' total · ' + u.activeKeys + ' active</td>' +
+        '<td style="font-size:12px" class="faint">' + SITE.esc(SITE.fmtDate(u.createdAt)) + '</td>' +
+        '<td class="act"></td>';
+      tr.children[2].appendChild(u.admin ? SITE.chip('ADMIN', 'violet') : SITE.chip('USER', ''));
+      const acts = tr.children[5];
+      if (u.id !== SITE.me.id) {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-sm' + (u.admin ? ' btn-danger' : ' btn-primary');
+        btn.textContent = u.admin ? 'DEMOTE' : 'PROMOTE';
+        btn.addEventListener('click', async () => {
+          const r = await SITE.api('/admin/users/role', 'POST', { id: u.id, admin: !u.admin });
+          if (r && r.ok) { SITE.toast('Role updated.', 'good'); refresh(); }
+        });
+        acts.appendChild(btn);
+      }
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb);
+    wrap.appendChild(tbl);
+    out.appendChild(wrap);
+  };
+
+  document.getElementById('gen').addEventListener('click', async () => {
+    const count = Math.max(1, Math.min(20, parseInt(document.getElementById('qty').value, 10) || 1));
+    const durationId = document.getElementById('dur').value;
+    document.getElementById('gen').disabled = true;
+    try {
+      const r = await SITE.api('/admin/keys/generate', 'POST', { durationId, count });
+      if (r && r.ok) {
+        SITE.toast(count + ' key(s) generated (' + r.keys[0].durationLabel + ').', 'good');
+        const out = document.getElementById('genout');
+        out.innerHTML = '';
+        const row = document.createElement('div');
+        row.className = 'row';
+        r.keys.forEach(k => {
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-sm btn-primary';
+          btn.textContent = k.code;
+          btn.addEventListener('click', () => SITE.copy(k.code));
+          row.appendChild(btn);
+        });
+        out.appendChild(row);
+        refresh();
+      }
+    } catch (e) { SITE.toast('Generation failed.', 'err'); }
+    document.getElementById('gen').disabled = false;
+  });
+
+  document.getElementById('refresh').addEventListener('click', refresh);
+  document.getElementById('q').addEventListener('input', () => { setTimeout(loadKeys, 250); });
+  document.getElementById('fstatus').addEventListener('change', loadKeys);
+  refresh();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+{
+  "users": [
+    {
+      "id": "da6a577e2325c8bb",
+      "name": "Owner",
+      "email": "owner@veyro.app",
+      "salt": "78a2bc5d0fa8353e7f544e3906b307c6",
+      "passHash": "X9ZX987VxQfna5M/8htXfvLYvu3o48IyuL47Pqmt8u5DjJks36jymbG0+XwfAU7N8PAwnfjDuW2suNRqKev9vQ==",
+      "admin": true,
+      "createdAt": 1787142100476
+    }
+  ],
+  "sessions": [
+    {
+      "token": "a6542d5b56b2f3c3b22df3c6b555e702ed60ad6fa5531890d0071282769bfb14",
+      "userId": "da6a577e2325c8bb",
+      "createdAt": 1787142618902
+    }
+  ],
+  "keys": [
+    {
+      "id": "c17517edfb28",
+      "code": "VEYR0-ABXL4-MY8BM-6SKYU",
+      "durationId": "m1",
+      "durationLabel": "1 MONTH",
+      "hours": 720,
+      "createdAt": 1787142622186,
+      "expiresAt": 1789734622186,
+      "revoked": false,
+      "revokedAt": null,
+      "activatedBy": null,
+      "activatedAt": null,
+      "deviceId": null
+    },
+    {
+      "id": "9eb726fb9351",
+      "code": "VEYR0-ABXL4-MY8XX-29428",
+      "durationId": "m1",
+      "durationLabel": "1 MONTH",
+      "hours": 720,
+      "createdAt": 1787142622186,
+      "expiresAt": 1789734622186,
+      "revoked": false,
+      "revokedAt": null,
+      "activatedBy": "da6a577e2325c8bb",
+      "activatedAt": 1787142625908,
+      "deviceId": "web-Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    },
+    {
+      "id": "9ada6707dde2",
+      "code": "VEYR0-ABXJ7-Y2PVN-34S8S",
+      "durationId": "w1",
+      "durationLabel": "1 WEEK",
+      "hours": 168,
+      "createdAt": 1787142285477,
+      "expiresAt": 1787747085477,
+      "revoked": true,
+      "revokedAt": 1787142293524,
+      "activatedBy": null,
+      "activatedAt": null,
+      "deviceId": null
+    },
+    {
+      "id": "414fabbdcd3a",
+      "code": "VEYR0-ABXJ7-Y2PVY-AWULZ",
+      "durationId": "w1",
+      "durationLabel": "1 WEEK",
+      "hours": 168,
+      "createdAt": 1787142285477,
+      "expiresAt": 1787747085477,
+      "revoked": false,
+      "revokedAt": null,
+      "activatedBy": "da6a577e2325c8bb",
+      "activatedAt": 1787142289100,
+      "deviceId": "web-Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    },
+    {
+      "id": "01c6a85994f8",
+      "code": "VEYR0-ABXJ7-YUZW9-PETDY",
+      "durationId": "w1",
+      "durationLabel": "1 WEEK",
+      "hours": 168,
+      "createdAt": 1787142103753,
+      "expiresAt": 1787746903753,
+      "revoked": true,
+      "revokedAt": 1787142111597,
+      "activatedBy": null,
+      "activatedAt": null,
+      "deviceId": null
+    },
+    {
+      "id": "0e3b6088317f",
+      "code": "VEYR0-ABXJ7-YUZ45-EZMLX",
+      "durationId": "w1",
+      "durationLabel": "1 WEEK",
+      "hours": 168,
+      "createdAt": 1787142103753,
+      "expiresAt": 1787746903753,
+      "revoked": false,
+      "revokedAt": null,
+      "activatedBy": "da6a577e2325c8bb",
+      "activatedAt": 1787142107075,
+      "deviceId": "web-Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+  ]
+}

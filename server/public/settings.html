@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile &amp; settings — Veyro</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2339FF88' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4l6.5 16L12 13l2.5 7L21 4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4l6.5 16L12 13l2.5 7L21 4"/></svg>
+      <span>Veyro</span>
+    </a>
+    <button class="burger" id="burger" aria-label="Menu">☰</button>
+    <nav class="nav" id="nav"></nav>
+    <div class="header-right" id="header-right"></div>
+  </div>
+</header>
+
+<div class="wrap" style="max-width:720px">
+  <div class="page-head">
+    <div class="eyebrow">Your account</div>
+    <h1 class="h-page">Profile &amp; settings.</h1>
+    <div class="h-sub">Identity and credentials on the Veyro backend. Licenses and keys live on the dashboard.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">Account</div>
+    <div id="acctbody"><div class="empty">Loading…</div></div>
+  </div>
+
+  <div class="card mt">
+    <div class="card-h">Change password</div>
+    <div class="form-row">
+      <label class="label" for="cur">Current password</label>
+      <input class="field" id="cur" type="password" autocomplete="current-password">
+    </div>
+    <div class="form-row">
+      <label class="label" for="n1">New password</label>
+      <input class="field" id="n1" type="password" autocomplete="new-password">
+    </div>
+    <div class="form-row">
+      <label class="label" for="n2">Repeat new password</label>
+      <input class="field" id="n2" type="password" autocomplete="new-password">
+    </div>
+    <button class="btn btn-primary" id="pwbtn">SAVE PASSWORD</button>
+    <div class="form-err" id="pwerr"></div>
+    <div class="form-msg" id="pwmsg"></div>
+  </div>
+
+  <div class="card mt">
+    <div class="card-h">Session</div>
+    <div class="row">
+      <button class="btn btn-danger" id="logout">LOG OUT</button>
+      <button class="btn" id="logoutall">LOG OUT EVERYWHERE</button>
+      <span class="muted" style="font-size:12.5px">Tip: logging out everywhere is performed by the server dropping your token.</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast-box"></div>
+<script src="site.js"></script>
+<script>
+SITE.boot('settings.html').then(async () => {
+  if (!SITE.me) return;
+  const body = document.getElementById('acctbody');
+  body.innerHTML = '';
+  const rows = [
+    ['Name', SITE.me.name],
+    ['Email', SITE.me.email],
+    ['Role', SITE.me.admin ? 'Administrator' : 'User'],
+    ['Member since', SITE.fmtDate(SITE.me.createdAt)]
+  ];
+  const tbl = document.createElement('table');
+  tbl.className = 'tbl';
+  const tb = document.createElement('tbody');
+  rows.forEach(([k, v]) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td style="width:160px" class="muted">' + SITE.esc(k) + '</td><td>' + SITE.esc(v) + '</td>';
+    tb.appendChild(tr);
+  });
+  tbl.appendChild(tb);
+  body.appendChild(tbl);
+
+  document.getElementById('logout').addEventListener('click', () => SITE.logout(false));
+  document.getElementById('logoutall').addEventListener('click', async () => {
+    try {
+      await SITE.api('/account/logout', 'POST');
+      SITE.toast('Session closed.', 'good');
+      SITE.logout(false);
+    } catch (e) { SITE.toast('Server unreachable.', 'err'); }
+  });
+
+  document.getElementById('pwbtn').addEventListener('click', async () => {
+    const cur = document.getElementById('cur').value;
+    const n1 = document.getElementById('n1').value;
+    const n2 = document.getElementById('n2').value;
+    const err = document.getElementById('pwerr');
+    const msg = document.getElementById('pwmsg');
+    err.textContent = '';
+    msg.textContent = '';
+    if (!cur || !n1) { err.textContent = 'Fill in both password fields.'; return; }
+    if (n1 !== n2) { err.textContent = 'New passwords do not match.'; return; }
+    if (n1.length < 6) { err.textContent = 'New password must be at least 6 characters.'; return; }
+    try {
+      const r = await SITE.api('/account/password', 'POST', { current: cur, next: n1 });
+      if (r && r.ok) {
+        msg.textContent = 'Password changed.';
+        document.getElementById('cur').value = '';
+        document.getElementById('n1').value = '';
+        document.getElementById('n2').value = '';
+      } else {
+        err.textContent = (r && r.error) || 'Could not change the password.';
+      }
+    } catch (e) { err.textContent = 'Server unreachable.'; }
+  });
+});
+</script>
+</body>
+</html>

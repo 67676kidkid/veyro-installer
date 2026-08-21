@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Veyro</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2339FF88' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4l6.5 16L12 13l2.5 7L21 4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4l6.5 16L12 13l2.5 7L21 4"/></svg>
+      <span>Veyro</span>
+    </a>
+    <button class="burger" id="burger" aria-label="Menu">☰</button>
+    <nav class="nav" id="nav"></nav>
+    <div class="header-right" id="header-right"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="page-head row-between">
+    <div>
+      <div class="eyebrow">Account area</div>
+      <h1 class="h-page" id="hello">Dashboard.</h1>
+      <div class="h-sub" id="sub"></div>
+    </div>
+    <a class="btn" href="settings.html">PROFILE &amp; SETTINGS</a>
+  </div>
+
+  <div class="grid grid-3" id="stats"></div>
+
+  <div class="card mt">
+    <div class="card-h">Activate a key</div>
+    <div class="row">
+      <input class="field" id="keyinp" placeholder="VEYR0-XXXXX-XXXXX-XXXXX" style="max-width:360px;font-family:var(--mono);letter-spacing:.04em">
+      <button class="btn btn-primary" id="actbtn">ACTIVATE</button>
+    </div>
+    <div class="form-err" id="acterr"></div>
+    <p class="muted faint" style="font-size:12.5px;margin-top:8px">
+      Activation is validated by the Veyro server: format, checksum and expiry are computed backend-side, and the key is bound to your account. Your license can also be activated inside the desktop app — same server, same status.
+    </p>
+  </div>
+
+  <div class="card mt">
+    <div class="card-h row-between">
+      <span>My keys</span>
+      <button class="btn btn-sm" id="refresh">REFRESH</button>
+    </div>
+    <div id="keysout"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+
+<div class="toast-box"></div>
+<script src="site.js"></script>
+<script>
+SITE.boot('dashboard.html').then(async () => {
+  if (!SITE.me) return;
+  document.getElementById('hello').textContent = 'Hi, ' + SITE.me.name + '.';
+  document.getElementById('sub').textContent = SITE.me.email + (SITE.me.admin ? ' · administrator' : '');
+
+  const loadAll = async () => {
+    try {
+      const health = await (await fetch('/api/health')).json();
+      const keys = await SITE.api('/keys');
+      const stats = document.getElementById('stats');
+      stats.innerHTML = '';
+      const active = (keys.keys || []).filter(k => k.status === 'ACTIVE');
+      const expired = (keys.keys || []).filter(k => k.status === 'EXPIRED');
+      const revoked = (keys.keys || []).filter(k => k.status === 'REVOKED');
+      const s = (n, l, cls) => {
+        const d = document.createElement('div');
+        d.className = 'stat';
+        d.innerHTML = '<div class="n">' + n + '</div><div class="l ' + cls + '">' + l + '</div>';
+        stats.appendChild(d);
+      };
+      s(active.length, 'Active keys', 'g');
+      s((keys.keys || []).length, 'All licenses', '');
+      s(health && health.ok ? 'ONLINE' : 'OFFLINE', 'Backend', health && health.ok ? 'g' : 'r');
+      const until = active[0] && active[0].expiresAt !== null ? active[0].expiresAt : (active[0] ? null : null);
+      if (active[0]) {
+        const d = document.createElement('div');
+        d.className = 'stat';
+        d.innerHTML = '<div class="n" style="font-size:14px;line-height:1.9">' + (until === null ? 'NEVER' : SITE.until(until).toUpperCase()) + '</div><div class="l g">Next expiry</div>';
+        stats.appendChild(d);
+      }
+      renderKeys(keys.keys || []);
+    } catch (e) {
+      document.getElementById('keysout').innerHTML = '<div class="empty">Server unreachable. Start the Veyro backend (port 9175) and refresh.</div>';
+    }
+  };
+
+  const renderKeys = (keys) => {
+    const out = document.getElementById('keysout');
+    out.innerHTML = '';
+    if (!keys.length) {
+      out.innerHTML = '<div class="empty">No keys activated yet. Generate keys as admin, or activate one above.</div>';
+      return;
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'tbl-wrap';
+    const tbl = document.createElement('table');
+    tbl.className = 'tbl';
+    tbl.innerHTML = '<thead><tr><th>Key</th><th>Duration</th><th>Status</th><th>Expires</th><th>Activated</th><th>Device</th><th></th></tr></thead>';
+    const tb = document.createElement('tbody');
+    keys.forEach(k => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td class="mono">' + SITE.esc(k.code) + '</td>' +
+        '<td>' + SITE.esc(k.durationLabel) + '</td>' +
+        '<td></td>' +
+        '<td style="font-size:12.5px">' + SITE.esc(k.expiresAt === null ? 'Never' : SITE.until(k.expiresAt)) + '<br><span class="faint">' + SITE.esc(SITE.fmtDate(k.expiresAt)) + '</span></td>' +
+        '<td style="font-size:12.5px">' + SITE.esc(SITE.fmtDate(k.activatedAt)) + '</td>' +
+        '<td class="mono" style="font-size:11.5px">' + SITE.esc(k.deviceId || '—') + '</td>' +
+        '<td class="act"></td>';
+      tr.children[2].appendChild(SITE.statusChip(k.status));
+      const acts = tr.children[6];
+      const cp = document.createElement('button');
+      cp.className = 'btn btn-sm';
+      cp.textContent = 'COPY';
+      cp.addEventListener('click', () => SITE.copy(k.code));
+      acts.appendChild(cp);
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb);
+    wrap.appendChild(tbl);
+    out.appendChild(wrap);
+  };
+
+  document.getElementById('actbtn').addEventListener('click', async () => {
+    const key = document.getElementById('keyinp').value.trim();
+    const err = document.getElementById('acterr');
+    err.textContent = '';
+    if (!key) { err.textContent = 'Paste a key first.'; return; }
+    document.getElementById('actbtn').disabled = true;
+    try {
+      const deviceId = (navigator.userAgent || 'veyro-web').slice(0, 60);
+      const r = await SITE.api('/keys/activate', 'POST', { key, deviceId: 'web-' + deviceId });
+      if (r && r.ok) {
+        SITE.toast('License active' + (r.expiresAt ? ' until ' + SITE.until(r.expiresAt).toUpperCase() : ' (lifetime)') + '.', 'good');
+        document.getElementById('keyinp').value = '';
+        loadAll();
+      } else {
+        err.textContent = (r && r.error) || 'Activation failed.';
+      }
+    } catch (e) {
+      err.textContent = 'Server unreachable.';
+    }
+    document.getElementById('actbtn').disabled = false;
+  });
+
+  document.getElementById('refresh').addEventListener('click', loadAll);
+  loadAll();
+});
+</script>
+</body>
+</html>

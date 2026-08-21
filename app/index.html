@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Veyro — PC Performance</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/veyro.css" />
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar"></aside>
+    <div id="main">
+      <header id="topbar"></header>
+      <main id="content"></main>
+    </div>
+  </div>
+  <div id="scan-overlay" class="scan-overlay hidden">
+    <div class="scan-panel">
+      <div class="scan-title">SCANNING YOUR PC</div>
+      <div class="scan-progress"><div id="scan-progress-fill"></div></div>
+      <div id="scan-progress-text" class="scan-progress-text">0%</div>
+      <div id="scan-steps" class="scan-steps"></div>
+    </div>
+  </div>
+  <div id="toast-root"></div>
+
+  <script src="js/core.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/engine/license.js"></script>
+  <script src="js/engine/account.js"></script>
+  <script src="js/engine/prefs.js"></script>
+  <script src="js/agent/hardwareAgent.js"></script>
+  <script src="js/engine/performance.js"></script>
+  <script src="js/engine/optimizer.js"></script>
+  <script src="js/engine/tools.js"></script>
+  <script src="js/engine/upgrades.js"></script>
+  <script src="js/engine/games.js"></script>
+  <script src="js/engine/health.js"></script>
+  <script src="js/engine/report.js"></script>
+  <script src="js/ui/components.js"></script>
+  <script src="js/ui/charts.js"></script>
+  <script src="js/ui/pages.js"></script>
+  <script src="js/ui/router.js"></script>
+  <script src="js/bootstrap.js"></script>
+</body>
+</html>

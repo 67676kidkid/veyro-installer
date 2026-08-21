@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create account — Veyro</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2339FF88' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4l6.5 16L12 13l2.5 7L21 4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4l6.5 16L12 13l2.5 7L21 4"/></svg>
+      <span>Veyro</span>
+    </a>
+    <button class="burger" id="burger" aria-label="Menu">☰</button>
+    <nav class="nav" id="nav"></nav>
+    <div class="header-right" id="header-right"></div>
+  </div>
+</header>
+
+<div class="auth-shell">
+  <div class="card auth-card">
+    <div class="eyebrow">New account</div>
+    <h1 class="h-page" style="margin-bottom:20px">Register.</h1>
+
+    <div class="form-row">
+      <label class="label" for="name">Name</label>
+      <input class="field" id="name" type="text" autocomplete="name" placeholder="Your name">
+    </div>
+    <div class="form-row">
+      <label class="label" for="email">Email</label>
+      <input class="field" id="email" type="email" autocomplete="email" placeholder="you@example.com">
+    </div>
+    <div class="form-row">
+      <label class="label" for="pw">Password</label>
+      <input class="field" id="pw" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+    </div>
+
+    <button class="btn btn-primary" id="submit" style="width:100%">CREATE ACCOUNT</button>
+    <div class="form-err" id="err"></div>
+    <div class="form-msg" id="msg"></div>
+
+    <div class="auth-alt">Already registered? <a href="login.html">Log in</a>.</div>
+  </div>
+</div>
+
+<div class="toast-box"></div>
+<script src="site.js"></script>
+<script>
+SITE.boot('register.html').then(() => {
+  if (SITE.me) { location.href = 'dashboard.html'; return; }
+  const submit = document.getElementById('submit');
+  const doRegister = async () => {
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const pw = document.getElementById('pw').value;
+    const err = document.getElementById('err');
+    const msg = document.getElementById('msg');
+    err.textContent = '';
+    msg.textContent = '';
+    if (!name || !email || !pw) { err.textContent = 'Fill in every field.'; return; }
+    submit.disabled = true;
+    submit.textContent = 'CREATING…';
+    try {
+      const r = await SITE.api('/account/register', 'POST', { name, email, password: pw });
+      if (r && r.ok) {
+        SITE.toast(r.message || 'Account created.', 'good');
+        SITE.login(r.token, r.user);
+      } else {
+        err.textContent = (r && r.error) || 'Could not create the account.';
+        submit.disabled = false;
+        submit.textContent = 'CREATE ACCOUNT';
+      }
+    } catch (e) {
+      err.textContent = 'Server unreachable. Is the Veyro backend running?';
+      submit.disabled = false;
+      submit.textContent = 'CREATE ACCOUNT';
+    }
+  };
+  submit.addEventListener('click', doRegister);
+  ['name', 'email', 'pw'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); });
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+{
+  "name": "veyro",
+  "productName": "Veyro",
+  "version": "1.0.1",
+  "description": "Veyro — PC performance, diagnostics, optimization and upgrade advisor. Optimize. Upgrade. Perform.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:local": "electron-builder --win --dir",
+    "dist": "electron-builder --publish=always"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.1.7"
+  },
+  "build": {
+    "appId": "com.veyro.app",
+    "productName": "Veyro",
+    "copyright": "Copyright © 2025 Veyro",
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGES.md,README.md,README,LICENSE}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/*.ts",
+      "!**/node_modules/*.map"
+    ],
+    "directories": {
+      "buildResources": "assets"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "sign": false,
+      "verifyUpdateCodeSignature": false
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "67676kidkid",
+      "repo": "veyro-installer"
+    }
+  }
+}

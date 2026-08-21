@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Docs — Veyro</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2339FF88' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4l6.5 16L12 13l2.5 7L21 4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4l6.5 16L12 13l2.5 7L21 4"/></svg>
+      <span>Veyro</span>
+    </a>
+    <button class="burger" id="burger" aria-label="Menu">☰</button>
+    <nav class="nav" id="nav"></nav>
+    <div class="header-right" id="header-right"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="eyebrow">Documentation</div>
+    <h1 class="h-page">How Veyro works.</h1>
+    <div class="h-sub">Licenses, accounts, the backend, and the desktop app — everything in one place.</div>
+  </div>
+
+  <div class="docs">
+    <h2>1 · The stack</h2>
+    <p>Veyro is two products sharing one backend:</p>
+    <ul>
+      <li><strong>Veyro desktop app</strong> — Windows suite: diagnostics, optimization with real System Restore points, performance monitoring, upgrade advisor, driver check, system report.</li>
+      <li><strong>This website</strong> — accounts, license management and (for the admin) the key generator.</li>
+      <li><strong>The backend</strong> — a real HTTP API + database on port <code>9175</code>. It is started automatically inside the app and can also run standalone with <code>node server/server.js</code>.</li>
+    </ul>
+
+    <h2>2 · Key format</h2>
+    <p>Every key looks like this and is <strong>validated twice</strong> — a lightweight local check in the app, and the authoritative check on the server:</p>
+    <div class="keystrip">VEYR0-XXXXX-XXXXX-XXXXX</div>
+    <ul>
+      <li>The expiry timestamp is encoded inside the key itself.</li>
+      <li>A checksum character protects the key from typos and tampering.</li>
+      <li>All-zero expiry means <strong>LIFETIME</strong>.</li>
+    </ul>
+
+    <h2>3 · Durations</h2>
+    <ul>
+      <li>3 Hours · 24 Hours · 3 Days · 1 Week · 1 Month · 1 Year · Lifetime</li>
+    </ul>
+    <p>Expiry is computed by the server at generation time and checked at every activation. The app trusts the same source of truth — there is no client-side "trust me" path.</p>
+
+    <h2>4 · Accounts</h2>
+    <ul>
+      <li>Register an account — the <strong>first account ever created becomes the administrator</strong>.</li>
+      <li>Passwords are hashed with scrypt and never stored in plain text.</li>
+      <li>Login issues a bearer token; sessions expire after 30 days of inactivity.</li>
+    </ul>
+
+    <h2>5 · Activation rules</h2>
+    <ul>
+      <li>A key is activated on the server and bound to the first account that uses it.</li>
+      <li>The same key on another account is rejected with <code>IN_USE</code>.</li>
+      <li>Revoked keys stop working immediately — even on a PC that already activated them.</li>
+      <li>Expired keys are rejected server-side; the expiry timestamp is never taken from the client.</li>
+    </ul>
+
+    <h2>6 · Admin</h2>
+    <ul>
+      <li>Generate keys for any of the 7 durations, in batches of up to 20.</li>
+      <li>Search, filter, revoke and un-revoke keys.</li>
+      <li>See every account, its keys and promote/demote admin rights.</li>
+    </ul>
+
+    <h2>7 · Running it</h2>
+    <ul>
+      <li>The desktop app starts the backend on boot. Nothing to configure.</li>
+      <li>Standalone: <code>node server/server.js</code> → <code>http://127.0.0.1:9175</code>.</li>
+      <li>Database lives in <code>server/db.json</code> (or <code>%APPDATA%\VEYRO\server-db.json</code> inside the packaged app). Keep a backup if you move machines.</li>
+    </ul>
+
+    <div class="alertbox">
+      This is a local-first product: the API binds to 127.0.0.1. To expose it publicly, deploy <code>server/server.js</code> on a host and open the port — the site and the app talk to whatever origin they are configured with.
+    </div>
+
+    <h2>8 · Quick start</h2>
+    <ol>
+      <li>Open the app (<code>veyro://optcenter</code>) or this site.</li>
+      <li>Register — you are the admin on a fresh backend.</li>
+      <li>On <a href="admin.html">Admin</a>, generate a key.</li>
+      <li>Paste it on the <a href="dashboard.html">Dashboard</a> or in <strong>App → Settings → Premium</strong>.</li>
+      <li>Same status in both places. Expiry, revocation and checksums are enforced by the server.</li>
+    </ol>
+  </div>
+</div>
+
+<div class="toast-box"></div>
+<script src="site.js"></script>
+<script>SITE.boot('docs.html');</script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log in — Veyro</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2339FF88' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4l6.5 16L12 13l2.5 7L21 4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4l6.5 16L12 13l2.5 7L21 4"/></svg>
+      <span>Veyro</span>
+    </a>
+    <button class="burger" id="burger" aria-label="Menu">☰</button>
+    <nav class="nav" id="nav"></nav>
+    <div class="header-right" id="header-right"></div>
+  </div>
+</header>
+
+<div class="auth-shell">
+  <div class="card auth-card">
+    <div class="eyebrow">Welcome back</div>
+    <h1 class="h-page" style="margin-bottom:20px">Log in.</h1>
+
+    <div class="form-row">
+      <label class="label" for="email">Email</label>
+      <input class="field" id="email" type="email" autocomplete="email" placeholder="you@example.com">
+    </div>
+    <div class="form-row">
+      <label class="label" for="pw">Password</label>
+      <input class="field" id="pw" type="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+
+    <button class="btn btn-primary" id="submit" style="width:100%">LOG IN</button>
+    <div class="form-err" id="err"></div>
+    <div class="form-msg" id="msg"></div>
+
+    <div class="auth-alt">No account yet? <a href="register.html">Create one</a> — the first account becomes the administrator.</div>
+  </div>
+</div>
+
+<div class="toast-box"></div>
+<script src="site.js"></script>
+<script>
+SITE.boot('login.html').then(() => {
+  if (SITE.me) { location.href = 'dashboard.html'; return; }
+  const submit = document.getElementById('submit');
+  const doLogin = async () => {
+    const email = document.getElementById('email').value.trim();
+    const pw = document.getElementById('pw').value;
+    const err = document.getElementById('err');
+    const msg = document.getElementById('msg');
+    err.textContent = '';
+    msg.textContent = '';
+    if (!email || !pw) { err.textContent = 'Enter your email and password.'; return; }
+    submit.disabled = true;
+    submit.textContent = 'LOGGING IN…';
+    try {
+      const r = await SITE.api('/account/login', 'POST', { email, password: pw });
+      if (r && r.ok) {
+        msg.textContent = 'Logged in.';
+        SITE.login(r.token, r.user);
+      } else {
+        err.textContent = (r && r.error) || 'Login failed.';
+        submit.disabled = false;
+        submit.textContent = 'LOG IN';
+      }
+    } catch (e) {
+      err.textContent = 'Server unreachable. Is the Veyro backend running?';
+      submit.disabled = false;
+      submit.textContent = 'LOG IN';
+    }
+  };
+  submit.addEventListener('click', doLogin);
+  document.getElementById('pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('email').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+});
+</script>
+</body>
+</html>
