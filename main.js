@@ -69,6 +69,7 @@ function createWindow() {
     show: false,
     autoHideMenuBar: true,
     title: 'Veyro — PC Performance',
+    icon: path.join(__dirname, 'assets', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -77,18 +78,9 @@ function createWindow() {
   });
 
   win.loadFile(path.join(__dirname, 'app', 'index.html'));
-  win.webContents.openDevTools({ mode: 'detach' });
   win.once('ready-to-show', () => {
     console.log('Window ready-to-show');
     win.show();
-  });
-  
-  win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    console.error('Failed to load:', errorCode, errorDescription);
-  });
-  
-  win.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    console.log(`[Renderer ${level}] ${message} (${sourceId}:${line})`);
   });
 
   /* deep link on first launch (veyro://finder via OS) */

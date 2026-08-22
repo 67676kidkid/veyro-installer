@@ -1,7 +1,7 @@
 {
   "name": "veyro",
   "productName": "Veyro",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "Veyro Team",
   "description": "Veyro — PC performance, diagnostics, optimization and upgrade advisor. Optimize. Upgrade. Perform.",
   "main": "main.js",
@@ -42,6 +42,7 @@
           "arch": ["x64"]
         }
       ],
+      "icon": "assets/icon.ico",
       "sign": false,
       "verifyUpdateCodeSignature": false,
       "requestedExecutionLevel": "requireAdministrator"

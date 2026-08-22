@@ -382,6 +382,36 @@ function createServer(opts = {}) {
 
   /* ---------------- API routes ---------------- */
 
+  /* ---- welcome email (Brevo free tier, fire-and-forget) ----
+     Set BREVO_API_KEY + MAIL_FROM in env to enable; silently skipped otherwise. */
+  function sendWelcomeEmail(email, name, isNew) {
+    const key = process.env.BREVO_API_KEY;
+    const from = process.env.MAIL_FROM;
+    if (!key || !from) return;
+    const subject = isNew ? 'Welcome to Veyro — thanks for joining!' : 'New sign-in to your Veyro account';
+    const html =
+      '<div style="font-family:Segoe UI,Arial,sans-serif;max-width:520px;margin:0 auto;padding:28px;background:#0b110d;border-radius:12px;color:#f1f5f2">' +
+      '<h2 style="color:#39ff88;margin:0 0 6px">Veyro</h2>' +
+      '<p style="margin:0 0 14px;font-size:13px;letter-spacing:.08em;color:#89958e">OPTIMIZE. UPGRADE. PERFORM.</p>' +
+      (isNew
+        ? '<h3 style="margin:0 0 10px">Thanks for registering' + (name ? ', ' + name : '') + '!</h3>' +
+          '<p style="line-height:1.6">Your account is ready. Activate a license key from the <a href="https://veyro-tawny.vercel.app/dashboard.html" style="color:#39ff88">dashboard</a> or inside the Veyro app.</p>'
+        : '<h3 style="margin:0 0 10px">You just signed in' + (name ? ', ' + name : '') + '.</h3>' +
+          '<p style="line-height:1.6">If this was you — enjoy! If not, change your password immediately.</p>') +
+      '<p style="margin-top:22px;font-size:11px;color:#5c6a61">Veyro · PC Performance</p></div>';
+    fetch('https://api.brevo.com/api/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'accept': 'application/json', 'content-type': 'application/json', 'api-key': key },
+      body: JSON.stringify({
+        sender: { name: process.env.MAIL_FROM_NAME || 'Veyro', email: from },
+        to: [{ email, name: name || email }],
+        subject,
+        htmlContent: html
+      })
+    }).then(r => { if (!r.ok) console.log('[mail] Brevo responded', r.status); })
+      .catch(e => console.log('[mail] send failed:', e.message));
+  }
+
   async function postRegister(body) {
     if (!body || typeof body.name !== 'string' || typeof body.email !== 'string' || typeof body.password !== 'string') {
       return { status: 400, body: { ok: false, error: 'name, email and password are required.' } };
@@ -405,6 +435,7 @@ function createServer(opts = {}) {
     const session = { token: newToken(), userId: user.id, createdAt: Date.now() };
     data.sessions.push(session);
     db.save();
+    try { sendWelcomeEmail(user.email, user.name, true); } catch (e) { /* never block signup */ }
     return { status: 200, body: { ok: true, token: session.token, user: publicUser(user), admin: user.admin, message: isFirst ? 'First account — you are the admin.' : 'Welcome!' } };
   }
 
@@ -425,6 +456,7 @@ function createServer(opts = {}) {
     data.sessions = data.sessions.filter(s => s.userId !== user.id);
     data.sessions.push(session);
     db.save();
+    try { sendWelcomeEmail(user.email, user.name, false); } catch (e) { /* never block login */ }
     return { status: 200, body: { ok: true, token: session.token, user: publicUser(user), admin: user.admin } };
   }
 
@@ -729,6 +761,8 @@ function createServer(opts = {}) {
       if (route.startsWith('admin/')) {
         if (!user || !user.admin) { bad(res, 'Admin only.', 403); return true; }
       }
+      const USER_ROUTES = ['keys', 'keys/activate', 'me', 'auth/password', 'auth/logout'];
+      if (!user && USER_ROUTES.includes(route)) { bad(res, 'Not logged in — please sign in again.', 401); return true; }
       if (route === 'admin/keys' && user) return await handle('GET', getAdminKeys);
       if (route === 'admin/keys/generate' && user) return await handle('POST', postGenerate);
       if (route === 'admin/keys/revoke' && user) return await handle('POST', postRevoke);
