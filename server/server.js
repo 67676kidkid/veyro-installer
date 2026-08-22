@@ -314,7 +314,65 @@ function createServer(opts = {}) {
   }
 
   function publicUser(u) {
-    return { id: u.id, name: u.name, email: u.email, admin: !!u.admin, createdAt: u.createdAt };
+    return { id: u.id, name: u.name, email: u.email, admin: !!u.admin, createdAt: u.createdAt, discord: u.discord || null };
+  }
+
+  /* ---- Discord OAuth2 link (uses the Veyro bot application) ---- */
+  function discordBase(req) {
+    const h = req.headers;
+    const proto = String(h['x-forwarded-proto'] || 'http').split(',')[0];
+    const host = String(h['x-forwarded-host'] || h.host || '127.0.0.1:9175').split(',')[0];
+    return proto + '://' + host;
+  }
+  async function handleDiscordStart(req, res, url) {
+    const token = url.searchParams.get('token') || '';
+    const sess = findSession(token);
+    if (!sess) { bad(res, 'Not logged in.', 401); return true; }
+    if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
+      res.writeHead(302, { Location: '/dashboard.html?discord=notconfigured' }); res.end(); return true;
+    }
+    const state = crypto.randomBytes(16).toString('hex');
+    sess.user.discordPendingState = state;
+    db.save();
+    const redirectUri = discordBase(req) + '/api/discord/callback';
+    const authUrl = 'https://discord.com/api/v10/oauth2/authorize'
+      + '?client_id=' + encodeURIComponent(process.env.DISCORD_CLIENT_ID)
+      + '&redirect_uri=' + encodeURIComponent(redirectUri)
+      + '&response_type=code&scope=' + encodeURIComponent('identify')
+      + '&state=' + state
+      + '&prompt=consent';
+    res.writeHead(302, { Location: authUrl }); res.end();
+    return true;
+  }
+  async function handleDiscordCallback(req, res, url) {
+    const code = url.searchParams.get('code') || '';
+    const state = url.searchParams.get('state') || '';
+    const back = (flag) => { res.writeHead(302, { Location: '/dashboard.html?discord=' + flag }); res.end(); };
+    if (!code || !process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) return back('error');
+    const sessUser = data.users.find(u => u.discordPendingState && u.discordPendingState === state);
+    if (!sessUser) return back('state');
+    delete sessUser.discordPendingState;
+    try {
+      const redirectUri = discordBase(req) + '/api/discord/callback';
+      const body = new URLSearchParams({
+        client_id: process.env.DISCORD_CLIENT_ID,
+        client_secret: process.env.DISCORD_CLIENT_SECRET,
+        grant_type: 'authorization_code', code, redirect_uri: redirectUri
+      });
+      const tr = await fetch('https://discord.com/api/v10/oauth2/token', {
+        method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body
+      });
+      if (!tr.ok) return back('token');
+      const du = await (await fetch('https://discord.com/api/v10/users/@me', {
+        headers: { authorization: 'Bearer ' + (await tr.json()).access_token }
+      })).json();
+      if (!du || !du.id) return back('profile');
+      if (data.users.some(u => u.discord && u.discord.id === du.id && u.id !== sessUser.id)) return back('taken');
+      sessUser.discord = { id: du.id, username: du.username, globalName: du.global_name || du.username, avatar: du.avatar || null };
+      db.save();
+      back('linked');
+    } catch (e) { back('error'); }
+    return true;
   }
 
   function keyView(userId, k) {
@@ -399,7 +457,7 @@ function createServer(opts = {}) {
         : '<h3 style="margin:0 0 10px">You just signed in' + (name ? ', ' + name : '') + '.</h3>' +
           '<p style="line-height:1.6">If this was you — enjoy! If not, change your password immediately.</p>') +
       '<p style="margin-top:22px;font-size:11px;color:#5c6a61">Veyro · PC Performance</p></div>';
-    fetch('https://api.brevo.com/api/v3/smtp/email', {
+    fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { 'accept': 'application/json', 'content-type': 'application/json', 'api-key': key },
       body: JSON.stringify({
@@ -755,6 +813,13 @@ function createServer(opts = {}) {
       }
       if (route === 'auth/password' && user) return await handle('POST', postPassword);
       if (route === 'me' && user) { json(res, 200, { ok: true, user: publicUser(user) }); return true; }
+      /* Discord linking — /api/auth/* is reserved on Vercel, so plain /api/discord/* */
+      if (route === 'discord/start') return await handleDiscordStart(req, res, url);
+      if (route === 'discord/callback') return await handleDiscordCallback(req, res, url);
+      if (route === 'discord/unlink' && user) {
+        delete user.discord; db.save();
+        json(res, 200, { ok: true, user: publicUser(user) }); return true;
+      }
       if (route === 'keys' && user) return await handle('GET', getMyKeys);
       if (route === 'keys/activate' && user) return await handle('POST', postActivate);
       if (route === 'keys/status') return await handle('POST', (b, u) => getKeyStatus(b, u));
