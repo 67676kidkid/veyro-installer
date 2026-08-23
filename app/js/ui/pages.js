@@ -1160,59 +1160,111 @@ search.addEventListener('input', () => {
      ============================================================ */
 
   const OPT_TWEAKS = [
-    { id: 'oc_game_priority', t: 'GAME PRIORITY BOOST', risk: 'LOW', benefit: 'Less input lag', cat: 'Performance',
-      what: 'Tells Windows to dedicate CPU attention to the currently active game, so frames are delivered faster and background apps no longer steal processor time.' },
-    { id: 'oc_ram_cleaner', t: 'MEMORY CLEANER', risk: 'LOW', benefit: 'More free RAM', cat: 'Performance',
-      what: 'Trims cached "standby" memory Windows keeps before a gaming session, returning usable RAM to your game and reducing hitching.' },
-    { id: 'oc_power_ult', t: 'ULTIMATE PERFORMANCE POWER PLAN', risk: 'LOW', benefit: 'Sustained CPU clocks', cat: 'Performance',
-      what: 'Activates the hidden Ultimate Performance power plan so the CPU keeps its maximum clock speed instead of throttling down between inputs.' },
-    { id: 'oc_hags', t: 'GPU HARDWARE SCHEDULING', risk: 'LOW', benefit: 'Lower frame latency', cat: 'Performance',
-      what: 'Enables Hardware-Accelerated GPU Scheduling so the GPU schedules its own frames instead of waiting on the CPU.' },
-    { id: 'oc_gamemode', t: 'GAME MODE + FULLSCREEN OPTIMIZATIONS', risk: 'LOW', benefit: 'Stable frame pacing', cat: 'Performance',
-      what: 'Locks Game Mode on and enables fullscreen optimizations so Windows stops prioritizing background tasks while you play.' },
-    { id: 'oc_visualfx', t: 'REDUCE VISUAL EFFECTS', risk: 'LOW', benefit: 'Snappier UI', cat: 'Performance',
-      what: 'Disables window shadows and fade animations — small CPU savings that make menus and alt-tabbing feel noticeably quicker.' },
+    /* ---------- 25 FREE ---------- */
+    { id:'oc_gamemode', t:'GAME MODE', risk:'LOW', benefit:'Stable frame pacing', cat:'Gaming', fps:[1,3], free:true,
+      what:'Windows Game Mode prioritizes your game over background tasks — free frames with zero downside.' },
+    { id:'oc_hags', t:'GPU HARDWARE SCHEDULING', risk:'LOW', benefit:'Lower frame latency', cat:'Gaming', fps:[1,4], free:true,
+      what:'Lets the GPU schedule its own frames instead of waiting on the CPU — reduces input lag and stutter.' },
+    { id:'oc_xboxbar', t:'DISABLE XBOX GAME BAR', risk:'LOW', benefit:'Recover GPU headroom', cat:'Gaming', fps:[1,3], free:true,
+      what:'The Game Bar overlay and background recorder permanently reserve GPU/CPU resources. Turn it off.' },
+    { id:'oc_bgrefresh', t:'STOP BACKGROUND APP REFRESH', risk:'LOW', benefit:'Lower idle RAM/CPU', cat:'Gaming', fps:[1,2], free:true,
+      what:'Store apps stop refreshing in the background — no more surprise CPU spikes mid-game.' },
+    { id:'oc_focusassist', t:'FOCUS ASSIST IN GAMES', risk:'LOW', benefit:'No focus-stealing popups', cat:'Gaming', fps:[0,1], free:true,
+      what:'Silences notifications while a game is in the foreground — no toast steals your focus.' },
+    { id:'oc_visualfx', t:'REDUCE VISUAL EFFECTS', risk:'LOW', benefit:'Snappier UI', cat:'Performance', fps:[0,2], free:true,
+      what:'Disables window shadows and fade animations — small CPU savings, snappier alt-tab.' },
+    { id:'oc_transparency', t:'DISABLE TRANSPARENCY', risk:'LOW', benefit:'Less GPU compositing', cat:'Performance', fps:[0,1], free:true,
+      what:'Windows transparency effects use GPU compositing — turning them off frees a tiny bit of GPU.' },
+    { id:'oc_tips', t:'DISABLE WINDOWS TIPS', risk:'LOW', benefit:'Less background noise', cat:'System', fps:[0,1], free:true,
+      what:'Windows tips and suggestions run background processes — disable them.' },
+    { id:'oc_widgets', t:'DISABLE WIDGETS', risk:'LOW', benefit:'Free RAM', cat:'System', fps:[0,2], free:true,
+      what:'The Widgets panel (news, weather) runs a WebView process that eats RAM and GPU — kill it.' },
+    { id:'oc_startup', t:'SMART STARTUP TRIM', risk:'LOW', benefit:'Faster boot + more free RAM', cat:'System', fps:[1,3], free:true,
+      what:'Disables startup apps that slow sign-in and pin memory in the background. Nothing is deleted.' },
+    { id:'oc_telemetry', t:'REDUCE TELEMETRY', risk:'MEDIUM', benefit:'Quieter background', cat:'System', fps:[0,2], free:true,
+      what:'Windows diagnostic data drops to minimum — less background CPU and network chatter.' },
+    { id:'oc_advid', t:'DISABLE ADVERTISING ID', risk:'LOW', benefit:'Less tracking', cat:'System', fps:[0,1], free:true,
+      what:'Windows advertising ID tracks you across apps — disable it for privacy and less background noise.' },
+    { id:'oc_cortana', t:'DISABLE CORTANA', risk:'LOW', benefit:'Free RAM', cat:'System', fps:[0,1], free:true,
+      what:'Cortana runs in the background even when unused — disable it to free RAM.' },
+    { id:'oc_sticky', t:'DISABLE STICKY KEYS PROMPT', risk:'LOW', benefit:'No mid-game popup', cat:'Gaming', fps:[0,1], free:true,
+      what:'The Sticky Keys popup (Shift x5) can steal focus mid-match — disable the prompt.' },
+    { id:'oc_mouseaccel', t:'DISABLE MOUSE ACCELERATION', risk:'MEDIUM', benefit:'Raw aim input', cat:'Gaming', fps:[0,1], free:true,
+      what:'Windows mouse acceleration curves your aim — raw 1:1 input for competitive play. Reversible.' },
+    { id:'oc_hiber', t:'SHRINK HIBERNATION FILE', risk:'MEDIUM', benefit:'Frees GB of disk', cat:'Storage', fps:[0,1], free:true,
+      what:'hiberfil.sys shrinks from a full RAM copy to minimum — frees several GB. Reversible.' },
+    { id:'oc_trim', t:'VERIFY SSD TRIM', risk:'LOW', benefit:'SSD stays fast', cat:'Storage', fps:[0,1], free:true,
+      what:'TRIM keeps your SSD fast by cleaning deleted data. Verify it is active.' },
+    { id:'oc_searchindex', t:'REDUCE SEARCH INDEXING', risk:'LOW', benefit:'Lower disk activity', cat:'Storage', fps:[0,1], free:true,
+      what:'Windows Search indexing hammers the drive on idle — limit it to used folders.' },
+    { id:'oc_usbpower', t:'STOP USB POWER SAVING', risk:'MEDIUM', benefit:'No device dropouts', cat:'System', fps:[0,1], free:true,
+      what:'Windows sleeps USB devices to save power — the reason mice/headsets disconnect mid-game. Reversible.' },
+    { id:'oc_awake', t:'GAMING AWAKE MODE', risk:'LOW', benefit:'Never sleeps mid-game', cat:'Gaming', fps:[0,1], free:true,
+      what:'Prevents sleep and pauses updates during gameplay sessions.' },
+    { id:'oc_dns', t:'FAST DNS', risk:'MEDIUM', benefit:'Faster game connection', cat:'Network', fps:[0,1], free:true,
+      what:'Cloudflare 1.1.1.1 DNS for faster game server connections. Reversible.' },
+    { id:'oc_qos', t:'REMOVE NETWORK THROTTLING', risk:'LOW', benefit:'Lower ping spikes', cat:'Network', fps:[0,1], free:true,
+      what:'Windows reserves 20% of bandwidth for background services — disable it for lower ping.' },
+    { id:'oc_cloudsync', t:'PAUSE CLOUD SYNC IN GAME', risk:'LOW', benefit:'No sync contention', cat:'Network', fps:[0,1], free:true,
+      what:'OneDrive/cloud sync pauses during gameplay — no disk or network contention.' },
+    { id:'oc_defer_updates', t:'DEFER FEATURE UPDATES', risk:'MEDIUM', benefit:'No mid-match restarts', cat:'System', fps:[0,1], free:true,
+      what:'Windows feature updates defer for weeks — no forced restart mid-match. Reversible.' },
+    { id:'oc_fso', t:'DISABLE FULLSCREEN OPTIMIZATIONS', risk:'LOW', benefit:'Better fullscreen FPS', cat:'Gaming', fps:[1,3], free:true,
+      what:'Windows fullscreen optimizations add a compositor layer — disable for true exclusive fullscreen.' },
 
-    { id: 'oc_awake', t: 'GAMING AWAKE MODE', risk: 'LOW', benefit: 'Never sleeps mid-game', cat: 'Gaming',
-      what: 'Keeps your PC from going to sleep during long sessions and pauses Windows updates while a game is running.' },
-    { id: 'oc_xboxbar', t: 'TURN OFF XBOX GAME BAR', risk: 'LOW', benefit: 'Recover GPU headroom', cat: 'Gaming',
-      what: 'Disables the Xbox Game Bar overlay and its background recording services, which permanently reserve GPU and CPU resources for snippets nobody asked for.' },
-    { id: 'oc_bgrefresh', t: 'STOP BACKGROUND APP REFRESH', risk: 'LOW', benefit: 'Lower idle RAM & CPU', cat: 'Gaming',
-      what: 'Prevents store apps from refreshing in the background, so they stop waking up, downloading and holding memory while you are gaming.' },
-    { id: 'oc_mouseaccel', t: 'DISABLE MOUSE ACCELERATION', risk: 'MEDIUM', benefit: 'Precise, raw aim input', cat: 'Gaming',
-      what: 'Turns off Windows mouse acceleration so your crosshair moves exactly as far as the mouse moves — the raw input competitive players expect. Reversible.' },
-    { id: 'oc_focusassist', t: 'FOCUS ASSIST IN GAMES', risk: 'LOW', benefit: 'No focus-stealing popups', cat: 'Gaming',
-      what: 'Automatically silences notifications while a game is in the foreground, so no toast pops up and steals focus in the middle of a match.' },
-    { id: 'oc_cloudsync', t: 'PAUSE CLOUD SYNC WHILE GAMING', risk: 'LOW', benefit: 'No sync contention', cat: 'Gaming',
-      what: 'Pauses OneDrive and cloud sync during gameplay so uploads never fight your game for disk bandwidth and network.' },
-
-    { id: 'oc_qos', t: 'REMOVE NETWORK THROTTLING', risk: 'LOW', benefit: 'Lower ping spikes', cat: 'Network',
-      what: 'Disables the 20% bandwidth reservation Windows keeps for background services, so downloads and updates no longer spike your ping mid-game.' },
-    { id: 'oc_dns', t: 'FAST DNS', risk: 'MEDIUM', benefit: 'Faster connection setup', cat: 'Network',
-      what: 'Switches DNS to the fastest public resolver (Cloudflare 1.1.1.1) for snappier connection setup in games and browsers. Reversible — you can switch back anytime.' },
-    { id: 'oc_telemetry', t: 'REDUCE WINDOWS TELEMETRY', risk: 'MEDIUM', benefit: 'Quieter background', cat: 'Network',
-      what: 'Switches Windows diagnostic data to the minimum level, cutting background network and CPU chatter. This is a privacy tweak, not a security change. Reversible.' },
-
-    { id: 'oc_disk_deepclean', t: 'DEEP JUNK CLEANER', risk: 'LOW', benefit: 'Frees disk space', cat: 'Storage',
-      what: 'Removes Windows temp files, update leftovers and app caches that accumulate over time and slow down launches and game installs.' },
-    { id: 'oc_hiber', t: 'SHRINK HIBERNATION FILE', risk: 'MEDIUM', benefit: 'Frees GB of disk', cat: 'Storage',
-      what: 'Reduces hiberfil.sys from a full RAM copy to the minimum size, freeing several gigabytes while keeping resume support. Reversible.' },
-    { id: 'oc_trim', t: 'VERIFY SSD TRIM', risk: 'LOW', benefit: 'SSD stays fast', cat: 'Storage',
-      what: 'Ensures TRIM is active on your system drive so deleted data is actually cleaned up and the SSD does not slow down over months of use.' },
-    { id: 'oc_searchindex', t: 'REDUCE SEARCH INDEXING', risk: 'LOW', benefit: 'Lower disk activity', cat: 'Storage',
-      what: 'Limits Windows Search indexing to the folders you actually use, so the background indexer stops hammering the drive on idle.' },
-    { id: 'oc_writecache', t: 'OPTIMIZE DISK WRITE CACHING', risk: 'MEDIUM', benefit: 'Faster writes', cat: 'Storage',
-      what: 'Ensures write caching is enabled on the system drive so file saves and installs complete faster. Drive is automatically flushed safely. Reversible.' },
-
-    { id: 'oc_startup', t: 'SMART STARTUP TRIM', risk: 'LOW', benefit: 'Faster boot', cat: 'System',
-      what: 'Recognizes and disables startup apps that slow your sign-in and keep memory pinned in the background. Apps stay installed — nothing is deleted.' },
-    { id: 'oc_unused_svc', t: 'DISABLE UNUSED SERVICES', risk: 'MEDIUM', benefit: 'Lower RAM & CPU', cat: 'System',
-      what: 'Stops a small set of clearly non-essential Windows services (Fax, XPS printing, sync bloat) that most PCs never use but keep running anyway. Reversible.' },
-    { id: 'oc_usbpower', t: 'STOP USB POWER SAVING', risk: 'MEDIUM', benefit: 'No device dropouts', cat: 'System',
-      what: 'Prevents Windows from sleeping USB devices to "save power" — the classic reason mice, headsets and controllers randomly disconnect mid-game. Reversible.' },
-    { id: 'oc_defer_updates', t: 'DEFER FEATURE UPDATES', risk: 'MEDIUM', benefit: 'No mid-match updates', cat: 'System',
-      what: 'Defers Windows feature updates by several weeks and pauses them during active game sessions, so the PC never restarts in the middle of competitive play. Reversible.' }
+    /* ---------- 25 PREMIUM ---------- */
+    { id:'oc_power_ult', t:'ULTIMATE PERFORMANCE PLAN', risk:'LOW', benefit:'Max sustained clocks', cat:'Performance', fps:[2,6], prem:true,
+      what:'Unlocks the hidden Ultimate Performance power plan — CPU never throttles down between inputs.' },
+    { id:'oc_corepark', t:'DISABLE CORE PARKING', risk:'LOW', benefit:'All cores active', cat:'Performance', fps:[2,5], prem:true,
+      what:'Windows parks CPU cores to save power — unpark them so every core is ready for your game.' },
+    { id:'oc_timerres', t:'TIMER RESOLUTION 0.5MS', risk:'LOW', benefit:'Smoother frame delivery', cat:'Performance', fps:[1,4], prem:true,
+      what:'Sets the system timer to 0.5ms for smoother frame delivery and lower input lag.' },
+    { id:'oc_hpet', t:'DISABLE HPET', risk:'MEDIUM', benefit:'Lower DPC latency', cat:'Performance', fps:[1,5], prem:true,
+      what:'High Precision Event Timer adds DPC latency — disable it for lower frame time variance. Reversible.' },
+    { id:'oc_msigpu', t:'MSI MODE FOR GPU', risk:'MEDIUM', benefit:'Lower GPU interrupt latency', cat:'Performance', fps:[1,4], prem:true,
+      what:'Message Signaled Interrupts give the GPU a dedicated interrupt line — lower latency. Reversible.' },
+    { id:'oc_pcie', t:'PCIE LINK POWER OFF', risk:'LOW', benefit:'GPU runs at full link speed', cat:'Performance', fps:[1,3], prem:true,
+      what:'PCIe link speed power management throttles GPU-to-CPU bandwidth — disable it.' },
+    { id:'oc_gpupower', t:'GPU MAX PERFORMANCE', risk:'LOW', benefit:'GPU never downclocks', cat:'Gaming', fps:[2,8], prem:true,
+      what:'NVIDIA/AMD power management set to Prefer Maximum Performance — GPU clocks stay pinned in games.' },
+    { id:'oc_lowlatency', t:'GPU LOW LATENCY MODE', risk:'LOW', benefit:'Lower input lag', cat:'Gaming', fps:[1,4], prem:true,
+      what:'NVIDIA Low Latency / AMD Anti-Lag — queues frames tighter for lower input lag.' },
+    { id:'oc_shadercache', t:'DIRECTX SHADER CACHE', risk:'LOW', benefit:'Faster shader loading', cat:'Gaming', fps:[1,3], prem:true,
+      what:'Enables the Windows shader cache — games load shaders faster, less stutter.' },
+    { id:'oc_overlays', t:'DISABLE ALL OVERLAYS', risk:'LOW', benefit:'Free GPU/CPU', cat:'Gaming', fps:[1,4], prem:true,
+      what:'Discord, GeForce Experience, Steam overlays all hook into your game and eat frames — disable them all.' },
+    { id:'oc_ramcleaner', t:'MEMORY CLEANER BEFORE GAME', risk:'LOW', benefit:'More free RAM', cat:'Performance', fps:[1,4], prem:true,
+      what:'Trims standby memory before a gaming session — more usable RAM for your game.' },
+    { id:'oc_pagefile', t:'OPTIMIZE PAGEFILE', risk:'MEDIUM', benefit:'Fewer stutters', cat:'Performance', fps:[1,3], prem:true,
+      what:'Fixed pagefile on your fastest drive avoids fragmentation and resize stutters. Reversible.' },
+    { id:'oc_priority', t:'GAME PROCESS PRIORITY', risk:'LOW', benefit:'Game gets CPU first', cat:'Gaming', fps:[2,6], prem:true,
+      what:'Sets game processes to High priority — the CPU serves your game before anything else.' },
+    { id:'oc_responsiveness', t:'SYSTEM RESPONSIVENESS 0%', risk:'LOW', benefit:'CPU serves games not background', cat:'Performance', fps:[1,4], prem:true,
+      what:'System responsiveness drops from 20% to 0% — the CPU serves games, not background tasks.' },
+    { id:'oc_nagle', t:'DISABLE NAGLE ALGORITHM', risk:'LOW', benefit:'Lower network latency', cat:'Network', fps:[0,2], prem:true,
+      what:'Nagle batches small network packets — disabling it sends them instantly for lower game latency.' },
+    { id:'oc_netthrottle', t:'NETWORK THROTTLING INDEX', risk:'LOW', benefit:'No network stutter', cat:'Network', fps:[0,2], prem:true,
+      what:'Sets network throttling index to max — no multimedia packets delay your game traffic.' },
+    { id:'oc_defender', t:'GAME FOLDER EXCLUSIONS', risk:'MEDIUM', benefit:'No scan stutter', cat:'Gaming', fps:[1,5], prem:true,
+      what:'Adds your game folders to Defender exclusions — real-time scanning stops causing stutter. Reversible.' },
+    { id:'oc_wupdate', t:'PAUSE UPDATES IN GAME', risk:'LOW', benefit:'No update CPU spike', cat:'Gaming', fps:[0,2], prem:true,
+      what:'Windows Update service pauses while a game is running — no background CPU spikes.' },
+    { id:'oc_sysmain', t:'DISABLE SYSMAIN ON SSD', risk:'LOW', benefit:'Less disk contention', cat:'Storage', fps:[0,2], prem:true,
+      what:'SysMain (Superfetch) pre-loads apps into RAM — on an SSD it causes more harm than good.' },
+    { id:'oc_writecache', t:'DISK WRITE CACHING', risk:'MEDIUM', benefit:'Faster game file writes', cat:'Storage', fps:[0,2], prem:true,
+      what:'Write caching speeds up game file saves and installs. Drive flushes safely. Reversible.' },
+    { id:'oc_unused_svc', t:'DISABLE UNUSED SERVICES', risk:'MEDIUM', benefit:'Lower RAM & CPU', cat:'System', fps:[1,3], prem:true,
+      what:'Stops Fax, XPS printing, sync bloat — services most PCs never use. Reversible.' },
+    { id:'oc_fsoall', t:'DISABLE FSO GLOBAL', risk:'MEDIUM', benefit:'True exclusive fullscreen', cat:'Gaming', fps:[2,8], prem:true,
+      what:'Disables fullscreen optimizations globally via registry — every game gets true exclusive fullscreen.' },
+    { id:'oc_interrupt', t:'GPU INTERRUPT AFFINITY', risk:'MEDIUM', benefit:'GPU interrupts on dedicated core', cat:'Performance', fps:[1,6], prem:true,
+      what:'GPU interrupts are pinned to a dedicated CPU core — the rest serve your game. Reversible.' },
+    { id:'oc_dpc', t:'DPC LATENCY OPTIMIZATION', risk:'MEDIUM', benefit:'Smooth frame times', cat:'Performance', fps:[1,6], prem:true,
+      what:'Reduces Deferred Procedure Call latency — smoother frame times, less micro-stutter. Reversible.' },
+    { id:'oc_boost', t:'ONE-CLICK FPS BOOST', risk:'LOW', benefit:'All free tweaks at once', cat:'Performance', fps:[5,15], prem:true,
+      what:'Applies every safe free tweak in one click — the fastest way to gain FPS.' }
   ];
+
 
   function optcenter(container) {
     const c = el('div', 'page-anim');
@@ -1323,9 +1375,10 @@ search.addEventListener('input', () => {
       body.style.flex = '1';
       const tt = el('div', 'r-title', esc(t.t));
       tt.appendChild(U.chip(t.risk, t.risk === 'MEDIUM' ? 'yellow' : 'gray'));
+      if (t.fps) tt.appendChild(U.chip('+' + t.fps[0] + '-' + t.fps[1] + ' FPS', 'green'));
       tt.appendChild(U.chip('BENEFIT: ' + t.benefit.toUpperCase(), 'green'));
+      if (t.prem && !prem) tt.appendChild(U.chip('PREMIUM', 'green'));
       tt.appendChild(U.chip(applied ? 'APPLIED — STAYS ACTIVE' : 'READY', applied ? 'green' : 'gray'));
-      if (!prem) tt.appendChild(U.chip('PREMIUM', 'green'));
       body.appendChild(tt);
       const wl = el('div', 'r-desc', null);
       wl.innerHTML = '<span class="meta ls-wide" style="font-size:9px">WHAT IT DOES</span>  ' + esc(t.what);
@@ -1341,7 +1394,8 @@ search.addEventListener('input', () => {
         renderCategory(t.cat);
       } });
 
-      if (!prem && !applied) {
+      const locked = t.prem && !prem;
+      if (locked && !applied) {
         const lb = U.btn('APPLY', false, { sm: true, cls: 'btn-sm', onClick: () => {
           Veyro.toast('Premium tweak', '"' + t.t + '" is premium. Buy a key on our Discord and paste it in Settings.', 'warn');
           Veyro.Router.go('settings');
@@ -1384,7 +1438,11 @@ search.addEventListener('input', () => {
       panel.innerHTML = '';
       const list = el('div', 'col');
       list.style.gap = '10px';
-      const tweaks = OPT_TWEAKS.filter(t => t.cat.toLowerCase() === catId);
+      let tweaks;
+      if (catId === 'free') tweaks = OPT_TWEAKS.filter(t => t.free);
+      else if (catId === 'premium') tweaks = OPT_TWEAKS.filter(t => t.prem);
+      else if (catId === 'allfps') tweaks = OPT_TWEAKS;
+      else tweaks = OPT_TWEAKS.filter(t => t.cat.toLowerCase() === catId);
       if (!tweaks.length) {
         panel.appendChild(el('div', 'meta', 'No tweaks in this category.'));
         return;
@@ -1394,16 +1452,41 @@ search.addEventListener('input', () => {
     }
 
     const tabGroup = U.tabGroup({
-      tabs: categories.map(cat => ({
-        id: cat.id,
-        label: cat.label,
-        icon: cat.icon,
-        groups: [{ id: cat.id, label: cat.label, content: (panel) => renderCategory(cat.id) }]
-      })),
+      tabs: [
+        ...categories.map(cat => ({
+          id: cat.id,
+          label: cat.label,
+          icon: cat.icon,
+          groups: [{ id: cat.id, label: cat.label, content: (panel) => renderCategory(cat.id) }]
+        })),
+        { id: 'free', label: 'FREE (25)', icon: 'check', groups: [{ id: 'free', label: 'FREE — 25 tweaks', content: (panel) => renderCategory('free') }] },
+        { id: 'premium', label: 'PREMIUM (25)', icon: 'spark', groups: [{ id: 'premium', label: 'PREMIUM — 25 tweaks', content: (panel) => renderCategory('premium') }] },
+        { id: 'allfps', label: 'ALL 50', icon: 'layers', groups: [{ id: 'allfps', label: 'ALL 50 FPS Tweaks', content: (panel) => renderCategory('allfps') }] }
+      ],
       defaultTab: 0,
       onTabChange: () => {}
     });
     c.appendChild(tabGroup.root);
+
+    /* FPS potential calculator */
+    const freeMin = OPT_TWEAKS.filter(t => t.free).reduce((s, t) => s + t.fps[0], 0);
+    const freeMax = OPT_TWEAKS.filter(t => t.free).reduce((s, t) => s + t.fps[1], 0);
+    const premMin = OPT_TWEAKS.filter(t => t.prem).reduce((s, t) => s + t.fps[0], 0);
+    const premMax = OPT_TWEAKS.filter(t => t.prem).reduce((s, t) => s + t.fps[1], 0);
+    const fpsCard = U.card('mt-16');
+    fpsCard.style.padding = '16px 20px';
+    const fpsRow = el('div', 'row');
+    const fpsIc = el('span', 'ic-24 text-accent');
+    fpsIc.innerHTML = icon('bolt', 24);
+    const fpsInfo = el('div', 'col');
+    fpsInfo.style.gap = '2px';
+    fpsInfo.appendChild(el('div', 'font-bold text-sm', 'TOTAL FPS POTENTIAL'));
+    fpsInfo.appendChild(el('div', 'meta', 'Free: +' + freeMin + '-' + freeMax + ' FPS · Premium adds: +' + premMin + '-' + premMax + ' FPS · Combined: +' + (freeMin + premMin) + '-' + (freeMax + premMax) + ' FPS'));
+    fpsRow.appendChild(fpsIc); fpsRow.appendChild(fpsInfo);
+    fpsRow.appendChild(el('div', 'flex-1'));
+    fpsRow.appendChild(U.chip('+' + (freeMin + premMin) + '-' + (freeMax + premMax) + ' FPS TOTAL', 'green'));
+    fpsCard.appendChild(fpsRow);
+    c.appendChild(fpsCard);
 
     return { destroy() { c.innerHTML = ''; } };
   }
