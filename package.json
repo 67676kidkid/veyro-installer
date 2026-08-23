@@ -1,7 +1,7 @@
 {
   "name": "veyro",
   "productName": "Veyro",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "author": "Veyro Team",
   "description": "Veyro — PC performance, diagnostics, optimization and upgrade advisor. Optimize. Upgrade. Perform.",
   "main": "main.js",

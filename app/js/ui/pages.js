@@ -2038,6 +2038,14 @@ const rowCfg = (title, desc, control) => {
     fontSel.addEventListener('change', () => { Veyro.Store.setSettings({ fontFamily: fontSel.value }); reRender(); });
     appr.appendChild(rowCfg('Font', 'App-wide typeface.', fontSel));
 
+    /* Text sizes */
+    appr.appendChild(rowCfg('Sidebar text size', 'Scale menu text in the sidebar.', rangeCtl(s.sidebarTextSize || 1, 0.85, 1.3, 0.05, (v) => {
+      Veyro.Store.setSettings({ sidebarTextSize: v });
+    })));
+    appr.appendChild(rowCfg('Content text size', 'Scale text in the main area.', rangeCtl(s.textSize || 1, 0.85, 1.3, 0.05, (v) => {
+      Veyro.Store.setSettings({ textSize: v });
+    })));
+
     c.appendChild(group('APPEARANCE', appr));
 
     /* Optimization */

@@ -17,7 +17,12 @@ Veyro.Store = (() => {
       demoMode: false,         // real hardware detection is the default
       privacyTelemetry: false,
       auroraTheme: false,      // premium-only visual theme
-      accentColor: ''          // UI Designer — custom accent (empty = Veyro Green)
+      accentColor: '',         // UI Designer — custom accent (empty = Veyro Green)
+      bgColor: '',             // UI Designer — background preset (empty = default)
+      radius: '',              // UI Designer — corner style (empty = default)
+      fontFamily: '',          // UI Designer — font override (empty = Inter)
+      sidebarTextSize: 1,      // UI Designer — sidebar text scale
+      textSize: 1              // UI Designer — main content scale
     }
   };
 
@@ -113,6 +118,8 @@ Veyro.Store = (() => {
     const fam = FONT_PRESETS[s.fontFamily] || null;
     if (fam) root.style.setProperty('--font', fam);
     else root.style.removeProperty('--font');
+    root.style.setProperty('--sb-scale', String(s.sidebarTextSize || 1));
+    root.style.setProperty('--ui-scale', String(s.textSize || 1));
     root.style.setProperty('--anim-speed', `${(0.24 * (1.5 - s.animationIntensity) + 0.05).toFixed(2)}s`);
     document.body.classList.toggle('veyro-demo', !!s.demoMode);
     const prem = !!(window.Veyro && Veyro.License && Veyro.License.isPremium());

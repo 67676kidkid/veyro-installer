@@ -66,6 +66,7 @@ body {
 #content {
   flex: 1;
   overflow-y: auto;
+  zoom: var(--ui-scale, 1);
   padding: 24px;
   padding-top: 18px;
 }
@@ -101,13 +102,13 @@ body {
   color: var(--accent);
 }
 
-.brand-name { font-weight: 800; font-size: 16px; letter-spacing: .08em; line-height: 1.1; }
+.brand-name { font-weight: 800; font-size: calc(16px * var(--sb-scale, 1)); letter-spacing: .08em; line-height: 1.1; }
 .brand-sub { font-size: 9px; letter-spacing: .22em; color: var(--muted); font-weight: 600; margin-top: 3px; }
 
 .nav { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow-y: auto; }
 
 .nav-label {
-  font-size: 9.5px; letter-spacing: .18em; font-weight: 600;
+  font-size: calc(9.5px * var(--sb-scale, 1)); letter-spacing: .18em; font-weight: 600;
   color: #5c6a61; padding: 14px 12px 6px;
 }
 
@@ -122,7 +123,7 @@ body {
   border-radius: var(--r-btn);
   color: var(--muted);
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--sb-scale, 1));
   font-weight: 500;
   transition: background .12s, color .12s;
 }
