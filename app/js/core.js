@@ -3,7 +3,7 @@
    ============================================================ */
 window.Veyro = window.Veyro || {};
 
-Veyro.VERSION = '1.0.7';
+Veyro.VERSION = '1.0.8';
 
 Veyro.$ = (sel, root) => (root || document).querySelector(sel);
 Veyro.$$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));

@@ -1972,6 +1972,72 @@ const rowCfg = (title, desc, control) => {
     paintDots();
     appr.appendChild(rowCfg('Accent color', 'UI Designer — pick your accent. Applies everywhere instantly.', swWrap));
 
+    /* UI Designer — full theme */
+    const uiWrap = el('div', 'row');
+    uiWrap.style.gap = '8px';
+    uiWrap.style.flexWrap = 'wrap';
+    const uiBtn = (label, active, onClick) => {
+      const b = U.btn(label, !!active, { sm: true });
+      b.addEventListener('click', onClick);
+      return b;
+    };
+    const refresh = () => { Veyro.Store.setSettings({}); reRender(); };
+
+    /* Theme presets */
+    const THEME_PRESETS = [
+      ['Veyro Dark',  { accentColor: '', bgColor: '', radius: '', fontFamily: '' }],
+      ['Midnight',    { accentColor: '#38BDF8', bgColor: 'black',  radius: '',     fontFamily: '' }],
+      ['Ocean',       { accentColor: '#22D3EE', bgColor: 'navy',   radius: 'round', fontFamily: '' }],
+      ['Sunset',      { accentColor: '#FB923C', bgColor: 'warm',   radius: 'round', fontFamily: '' }],
+      ['Forest',      { accentColor: '#4ADE80', bgColor: 'forest', radius: 'round', fontFamily: '' }],
+      ['Slate Mono',  { accentColor: '#94A3B8', bgColor: 'slate',  radius: 'sharp', fontFamily: 'mono' }]
+    ];
+    const tpRow = el('div', 'row');
+    tpRow.style.gap = '6px';
+    tpRow.style.flexWrap = 'wrap';
+    THEME_PRESETS.forEach(([name, patch]) => {
+      tpRow.appendChild(uiBtn(name, false, () => {
+        Veyro.Store.setSettings(patch);
+        Veyro.toast('UI Designer', name + ' theme applied.', 'good');
+        reRender();
+      }));
+    });
+    appr.appendChild(rowCfg('Theme presets', 'One-click full-app themes.', tpRow));
+
+    /* Background */
+    const bgRow = el('div', 'row');
+    bgRow.style.gap = '6px';
+    bgRow.style.flexWrap = 'wrap';
+    const BGS = [['Default', ''], ['Black', 'black'], ['Navy', 'navy'], ['Warm', 'warm'], ['Forest', 'forest'], ['Slate', 'slate']];
+    BGS.forEach(([name, id]) => {
+      const b = uiBtn(name, s.bgColor === id, () => { Veyro.Store.setSettings({ bgColor: id }); reRender(); });
+      bgRow.appendChild(b);
+    });
+    appr.appendChild(rowCfg('Background', 'App-wide background palette.', bgRow));
+
+    /* Corners */
+    const radRow = el('div', 'row');
+    radRow.style.gap = '6px';
+    const RADS = [['Default', ''], ['Sharp', 'sharp'], ['Rounded', 'round'], ['Pill', 'pill']];
+    RADS.forEach(([name, id]) => {
+      radRow.appendChild(uiBtn(name, s.radius === id, () => { Veyro.Store.setSettings({ radius: id }); reRender(); }));
+    });
+    appr.appendChild(rowCfg('Corners', 'Button and card rounding.', radRow));
+
+    /* Font */
+    const fontSel = el('select', 'field');
+    fontSel.style.width = '180px';
+    fontSel.style.height = '30px';
+    fontSel.style.fontSize = '12px';
+    [['Inter (default)', ''], ['JetBrains Mono', 'mono'], ['System UI', 'system'], ['Rounded', 'rounded']].forEach(([label, id]) => {
+      const op = el('option', undefined, label);
+      op.value = id;
+      if (s.fontFamily === id) op.selected = true;
+      fontSel.appendChild(op);
+    });
+    fontSel.addEventListener('change', () => { Veyro.Store.setSettings({ fontFamily: fontSel.value }); reRender(); });
+    appr.appendChild(rowCfg('Font', 'App-wide typeface.', fontSel));
+
     c.appendChild(group('APPEARANCE', appr));
 
     /* Optimization */
