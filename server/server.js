@@ -99,16 +99,16 @@ function durationOf(expiresAt, createdAt) {
 /* ---------------- tiny db (atomic JSON) ---------------- */
 
 function createDb(file) {
-  let data = null;
+  const data = { users: [], sessions: [], keys: [] };
+  let lastMtime = 0;
   function load() {
-    try {
-      data = JSON.parse(fs.readFileSync(file, 'utf8'));
-    } catch (e) {
-      data = { users: [], sessions: [], keys: [] };
-    }
-    data.users = data.users || [];
-    data.sessions = data.sessions || [];
-    data.keys = data.keys || [];
+    let d = null;
+    try { d = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { d = null; }
+    if (!d || typeof d !== 'object') d = {};
+    /* mutate in place so closures keep the same reference */
+    data.users = Array.isArray(d.users) ? d.users : [];
+    data.sessions = Array.isArray(d.sessions) ? d.sessions : [];
+    data.keys = Array.isArray(d.keys) ? d.keys : [];
     return data;
   }
   function save() {
@@ -116,9 +116,18 @@ function createDb(file) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
     fs.renameSync(tmp, file);
+    try { lastMtime = fs.statSync(file).mtimeMs; } catch (e) { /* ignore */ }
   }
-  load();
-  return { data, save, file };
+  /* re-read when the file changed on disk (e.g. KeyGen wrote new keys) */
+  async function ensureLoaded() {
+    try {
+      const mt = fs.existsSync(file) ? fs.statSync(file).mtimeMs : 0;
+      if (mt !== lastMtime) { lastMtime = mt; load(); }
+    } catch (e) { /* ignore */
+    }
+  }
+  ensureLoaded();
+  return { data, save, file, ensureLoaded };
 }
 
 /* KV-backed db for serverless (Vercel). The whole data document lives under a
@@ -232,6 +241,7 @@ function createGhDb() {
         } catch (e) { return; }
       }
     }).catch(() => {});
+    return saveChain;
   }
   return { data, save, file: 'github:' + owner + '/' + repo + '/' + filePath, ensureLoaded, forceReload };
 }
@@ -275,8 +285,8 @@ function createServer(opts = {}) {
       if (fs.existsSync(tf)) botToken = fs.readFileSync(tf, 'utf8').trim();
     } catch (e) { /* ignore */ }
   }
-  function authUser(auth) {
-    const sess = findSession(auth);
+  async function authUser(auth) {
+    const sess = await findSession(auth);
     if (sess) return sess.user;
     if (botToken && auth === botToken) {
       return { id: 'bot-admin', name: 'Veyro Bot', email: 'bot@veyro.app', admin: true, isBot: true, createdAt: Date.now() };
@@ -307,12 +317,12 @@ function createServer(opts = {}) {
     rate.delete(ip);
   }
 
-  function findSession(token) {
+  async function findSession(token) {
     const s = data.sessions.find(x => x.token === token);
     if (!s) return null;
     if (Date.now() - s.createdAt > 30 * 86400000) {
       data.sessions = data.sessions.filter(x => x.token !== token);
-      db.save();
+      await db.save();
       return null;
     }
     const u = data.users.find(x => x.id === s.userId);
@@ -332,14 +342,14 @@ function createServer(opts = {}) {
   }
   async function handleDiscordStart(req, res, url) {
     const token = url.searchParams.get('token') || '';
-    const sess = findSession(token);
+    const sess = await findSession(token);
     if (!sess) { bad(res, 'Not logged in.', 401); return true; }
     if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
       res.writeHead(302, { Location: '/dashboard.html?discord=notconfigured' }); res.end(); return true;
     }
     const state = crypto.randomBytes(16).toString('hex');
     sess.user.discordPendingState = state;
-    db.save();
+    await db.save();
     const redirectUri = discordBase(req) + '/api/discord/callback';
     const authUrl = 'https://discord.com/api/v10/oauth2/authorize'
       + '?client_id=' + encodeURIComponent(process.env.DISCORD_CLIENT_ID)
@@ -375,7 +385,7 @@ function createServer(opts = {}) {
       if (!du || !du.id) return back('profile');
       if (data.users.some(u => u.discord && u.discord.id === du.id && u.id !== sessUser.id)) return back('taken');
       sessUser.discord = { id: du.id, username: du.username, globalName: du.global_name || du.username, avatar: du.avatar || null };
-      db.save();
+      await db.save();
       back('linked');
     } catch (e) { back('error'); }
     return true;
@@ -523,7 +533,7 @@ function createServer(opts = {}) {
       });
       gift = { code, expiresAt: expAt };
     }
-    db.save();
+    await db.save();
     try { sendWelcomeEmail(user.email, user.name, true); } catch (e) { /* never block signup */ }
     return { status: 200, body: { ok: true, token: session.token, user: publicUser(user), admin: user.admin, gift, message: isFirst ? 'First account — you are the admin.' : (gift ? 'Welcome! A FREE 3-hour key is already on your account.' : 'Welcome! (Free PC trial was already used on this device.)') } };
   }
@@ -549,19 +559,24 @@ function createServer(opts = {}) {
     const session = { token: newToken(), userId: user.id, createdAt: Date.now() };
     data.sessions = data.sessions.filter(s => s.userId !== user.id);
     data.sessions.push(session);
-    db.save();
+    await db.save();
     try { sendWelcomeEmail(user.email, user.name, false); } catch (e) { /* never block login */ }
     return { status: 200, body: { ok: true, token: session.token, user: publicUser(user), admin: user.admin } };
   }
 
-  function postActivate(body, user) {
+  async function postActivate(body, user) {
     if (!body || typeof body.key !== 'string') return { status: 400, body: { ok: false, error: 'key is required.' } };
     const dec = decodeKey(body.key);
     if (!dec.ok) {
       const msg = dec.reason === 'checksum' ? 'The key is structurally broken.' : 'Format must be VEYR0-XXXXX-XXXXX-XXXXX.';
       return { status: 400, body: { ok: false, error: msg, status: 'INVALID' } };
     }
-    const k = data.keys.find(x => x.code === dec.code);
+    let k = data.keys.find(x => x.code === dec.code);
+    if (!k && typeof db.forceReload === 'function') {
+      /* warm instance may predate the key generation (KeyGen/admin) — refetch once */
+      try { await db.forceReload(); } catch (e) { /* keep going */ }
+      k = data.keys.find(x => x.code === dec.code);
+    }
     const now = Date.now();
     if (!k) {
       return {
@@ -589,7 +604,7 @@ function createServer(opts = {}) {
       k.activatedBy = user.id;
       k.activatedAt = now;
       k.deviceId = deviceId;
-      db.save();
+      await db.save();
     }
     const dur = k.durationId ? DUR_BY_ID.get(k.durationId) : durationOf(k.expiresAt, k.createdAt);
     return {
@@ -623,7 +638,7 @@ function createServer(opts = {}) {
     };
   }
 
-  function postPassword(body, user) {
+  async function postPassword(body, user) {
     if (!user) return { status: 401, body: { ok: false, error: 'Not authenticated.' } };
     if (!body || typeof body.current !== 'string' || typeof body.next !== 'string') {
       return { status: 400, body: { ok: false, error: 'current and next are required.' } };
@@ -634,11 +649,11 @@ function createServer(opts = {}) {
     if (body.next.length < 6) return { status: 400, body: { ok: false, error: 'New password must be at least 6 characters.' } };
     user.salt = newSalt();
     user.passHash = hashPassword(body.next, user.salt);
-    db.save();
+    await db.save();
     return { status: 200, body: { ok: true, message: 'Password changed.' } };
   }
 
-  function postGenerate(body, user) {
+  async function postGenerate(body, user) {
     if (!user.admin) return { status: 403, body: { ok: false, error: 'Admin only.' } };
     const durId = typeof body.durationId === 'string' ? body.durationId : 'h24';
     const dur = DUR_BY_ID.get(durId);
@@ -663,11 +678,11 @@ function createServer(opts = {}) {
       data.keys.unshift(rec);
       created.push(keyView(user.id, rec));
     }
-    db.save();
+    await db.save();
     return { status: 200, body: { ok: true, keys: created } };
   }
 
-  function postKeyGenSync(body) {
+  async function postKeyGenSync(body) {
     const keys = body?.keys || [];
     if (!Array.isArray(keys) || !keys.length) {
       return { status: 400, body: { ok: false, error: 'keys array required' } };
@@ -696,27 +711,27 @@ function createServer(opts = {}) {
       data.keys.unshift(rec);
       created.push(keyView('keygen', rec));
     }
-    db.save();
+    await db.save();
     return { status: 200, body: { ok: true, synced: created.length } };
   }
 
-  function postRevoke(body, user) {
+  async function postRevoke(body, user) {
     if (!user.admin) return { status: 403, body: { ok: false, error: 'Admin only.' } };
     const k = data.keys.find(x => x.id === String(body.id || ''));
     if (!k) return { status: 404, body: { ok: false, error: 'Key not found.' } };
     k.revoked = true;
     k.revokedAt = Date.now();
-    db.save();
+    await db.save();
     return { status: 200, body: { ok: true, key: keyView(user.id, k) } };
   }
 
-  function postUnrevoke(body, user) {
+  async function postUnrevoke(body, user) {
     if (!user.admin) return { status: 403, body: { ok: false, error: 'Admin only.' } };
     const k = data.keys.find(x => x.id === String(body.id || ''));
     if (!k) return { status: 404, body: { ok: false, error: 'Key not found.' } };
     k.revoked = false;
     k.revokedAt = null;
-    db.save();
+    await db.save();
     return { status: 200, body: { ok: true, key: keyView(user.id, k) } };
   }
 
@@ -755,7 +770,7 @@ function createServer(opts = {}) {
     };
   }
 
-  function postRole(body, user) {
+  async function postRole(body, user) {
     if (!user.admin) return { status: 403, body: { ok: false, error: 'Admin only.' } };
     const u = data.users.find(x => x.id === String(body.id || ''));
     if (!u) return { status: 404, body: { ok: false, error: 'User not found.' } };
@@ -764,11 +779,11 @@ function createServer(opts = {}) {
       if (!otherAdmins.length) return { status: 400, body: { ok: false, error: 'You are the last admin.' } };
     }
     u.admin = !!body.admin;
-    db.save();
+    await db.save();
     return { status: 200, body: { ok: true, user: publicUser(u) } };
   }
 
-  function postAdminPassword(body, user) {
+  async function postAdminPassword(body, user) {
     if (!user.admin) return { status: 403, body: { ok: false, error: 'Admin only.' } };
     const u = data.users.find(x => x.id === String((body && body.id) || ''));
     if (!u) return { status: 404, body: { ok: false, error: 'User not found.' } };
@@ -777,7 +792,7 @@ function createServer(opts = {}) {
     u.salt = newSalt();
     u.passHash = hashPassword(pw, u.salt);
     data.sessions = data.sessions.filter(s => s.userId !== u.id);
-    db.save();
+    await db.save();
     return { status: 200, body: { ok: true, user: publicUser(u), message: 'Password set. All their sessions were logged out.' } };
   }
 
@@ -825,7 +840,7 @@ function createServer(opts = {}) {
     const p = url.pathname;
     const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').replace(/^::ffff:/, '').split(',')[0].trim();
     const auth = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-    const user = authUser(auth);
+    let user = await authUser(auth);
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
@@ -840,6 +855,11 @@ function createServer(opts = {}) {
 
     if (p.startsWith('/api/')) {
       let route = p.slice(5);
+      /* session race: token present but not on this warm instance → refetch once */
+      if (!user && auth && typeof db.forceReload === 'function') {
+        try { await db.forceReload(); } catch (e) { /* keep going */ }
+        user = authUser(auth);
+      }
       /* /api/auth/* is reserved by the Vercel platform on *.vercel.app domains
          (their SSO flow), so the hosted site uses /api/account/* instead and we
          rewrite it back here. The desktop app keeps using /api/auth/* directly. */
@@ -869,7 +889,7 @@ function createServer(opts = {}) {
       if (route === 'auth/login') return await handle('POST', (b, u, i) => postLogin(b, i));
       if (route === 'auth/logout' && user) {
         data.sessions = data.sessions.filter(s => s.token !== auth);
-        db.save();
+        await db.save();
         json(res, 200, { ok: true });
         return true;
       }
@@ -879,7 +899,7 @@ function createServer(opts = {}) {
       if (route === 'discord/start') return await handleDiscordStart(req, res, url);
       if (route === 'discord/callback') return await handleDiscordCallback(req, res, url);
       if (route === 'discord/unlink' && user) {
-        delete user.discord; db.save();
+        delete user.discord; await db.save();
         json(res, 200, { ok: true, user: publicUser(user) }); return true;
       }
       if (route === 'keys' && user) return await handle('GET', getMyKeys);
