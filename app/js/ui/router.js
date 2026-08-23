@@ -19,7 +19,8 @@ Veyro.Router = (() => {
     { id: 'health', label: 'Health', icon: 'heart' },
     { id: 'tips', label: 'Tips', icon: 'bulb' },
     { id: 'tools', label: 'Power Tools', icon: 'wrench' },
-    { id: 'finder', label: 'Our Website', icon: 'find' }
+    { id: 'finder', label: 'Our Website', icon: 'find' },
+    { id: 'fpscalc', label: 'FPS Calculator', icon: 'bolt' }
   ];
 
   const TITLES = {
@@ -34,6 +35,7 @@ Veyro.Router = (() => {
     tips: 'PC Tips',
     tools: 'Power Tools',
     finder: 'Our Website',
+    fpscalc: 'FPS Calculator',
     settings: 'Settings',
     driver: 'Driver Check',
     report: 'System Report'
@@ -238,6 +240,7 @@ Veyro.Router = (() => {
       case 'tips': return Veyro.Pages.tips(container);
       case 'tools': return Veyro.Pages.tools(container);
       case 'finder': return Veyro.Pages.finder(container);
+      case 'fpscalc': return Veyro.Pages.fpscalc(container);
       case 'settings': return Veyro.Pages.settings(container);
       case 'driver': return Veyro.Pages.driver(container);
       case 'report': return Veyro.Pages.report(container);
