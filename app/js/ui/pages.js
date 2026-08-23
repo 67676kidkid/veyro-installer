@@ -1921,6 +1921,57 @@ const rowCfg = (title, desc, control) => {
     appr.appendChild(rowCfg('Green accent intensity', 'Brightness of the Veyro accent color.', rangeCtl(s.greenAccentIntensity, 0.6, 1.4, 0.1, (v) => {
       Veyro.Store.setSettings({ greenAccentIntensity: v });
     })));
+
+    /* UI Designer — accent color */
+    const PRESETS = [
+      ['Veyro Green', '#39FF88'], ['Violet', '#A78BFA'], ['Blue', '#38BDF8'],
+      ['Red', '#FF5C5C'], ['Orange', '#FB923C'], ['Pink', '#F472B6'], ['Gold', '#F4C95D']
+    ];
+    const swWrap = el('div', 'row');
+    swWrap.style.gap = '6px';
+    swWrap.style.flexWrap = 'wrap';
+    const swDots = [];
+    const paintDots = () => swDots.forEach(d => {
+      d.style.outline = (d.dataset.color === (s.accentColor || '')) ? '2px solid #fff' : 'none';
+      d.style.outlineOffset = '2px';
+    });
+    PRESETS.forEach(([name, hex]) => {
+      const b = el('button');
+      b.type = 'button';
+      b.title = name;
+      b.dataset.color = hex;
+      b.style.cssText = 'width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,255,255,.25);cursor:pointer;background:' + hex;
+      b.addEventListener('click', () => {
+        s.accentColor = hex;
+        Veyro.Store.setSettings({ accentColor: hex });
+        Veyro.toast('Accent color', name + ' applied.', 'good');
+        paintDots();
+      });
+      swDots.push(b);
+      swWrap.appendChild(b);
+    });
+    const custom = el('input');
+    custom.type = 'color';
+    custom.value = s.accentColor || '#39ff88';
+    custom.title = 'Custom color';
+    custom.style.cssText = 'width:34px;height:26px;padding:0;border:1px solid var(--border);border-radius:6px;background:transparent;cursor:pointer';
+    custom.addEventListener('input', () => {
+      s.accentColor = custom.value;
+      Veyro.Store.setSettings({ accentColor: custom.value });
+      paintDots();
+    });
+    swWrap.appendChild(custom);
+    const resetBtn = U.btn('RESET', false, { sm: true, onClick: () => {
+      s.accentColor = '';
+      Veyro.Store.setSettings({ accentColor: '' });
+      custom.value = '#39ff88';
+      Veyro.toast('Accent color', 'Back to Veyro Green.', 'good');
+      paintDots();
+    } });
+    swWrap.appendChild(resetBtn);
+    paintDots();
+    appr.appendChild(rowCfg('Accent color', 'UI Designer — pick your accent. Applies everywhere instantly.', swWrap));
+
     c.appendChild(group('APPEARANCE', appr));
 
     /* Optimization */

@@ -37,20 +37,42 @@ Veyro.Account = (() => {
     document.dispatchEvent(new CustomEvent('veyro:account', { detail: { online: state.online, user: state.user, token: state.token } }));
   }
 
+  /* Multi-backend: local embedded server first, Vercel cloud as fallback.
+     activeBase pins to whichever server authenticated the current token. */
+  const BASES = [BASE, 'https://veyro-tawny.vercel.app'];
+  let activeBase = null;
+
   function api(path, method, body) {
     const headers = { 'Accept': 'application/json' };
     if (body !== undefined && body !== null) headers['Content-Type'] = 'application/json';
     if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
-    return fetch(BASE + path, {
-      method: method || 'GET',
-      headers,
-      body: body !== undefined && body !== null ? JSON.stringify(body) : undefined
-    }).then(res => {
-      return res.json().catch(() => ({ ok: false, msg: 'Bad response from backend (' + res.status + ').' }));
-    }).catch(() => {
-      state.online = false;
-      return { ok: false, msg: 'Backend offline — start Veyro to sign in.' };
-    });
+    const bases = activeBase ? [activeBase] : BASES;
+    const attempt = (i) => {
+      if (i >= bases.length) {
+        state.online = false;
+        return Promise.resolve({ ok: false, msg: 'Backend offline — start Veyro to sign in.' });
+      }
+      return fetch(bases[i] + path, {
+        method: method || 'GET',
+        headers,
+        body: body !== undefined && body !== null ? JSON.stringify(body) : undefined
+      }).then(res => {
+        return res.json().catch(() => ({ ok: false, msg: 'Bad response from backend (' + res.status + ').' }));
+      }).then(d => {
+        if (d && d.ok) {
+          state.online = true;
+          if (!activeBase && (path.indexOf('/auth/login') !== -1 || path.indexOf('/auth/register') !== -1 || path === '/api/me')) activeBase = bases[i];
+          return d;
+        }
+        /* not-ok here may mean "wrong server" (account/session lives on the other one) — try next */
+        return attempt(i + 1).then(next => {
+          if (next && next.ok) return next;
+          if (d && d.error) return Object.assign({}, d, { msg: d.error });
+          return d;
+        });
+      }).catch(() => attempt(i + 1));
+    };
+    return attempt(0);
   }
 
   function serverHealth() {

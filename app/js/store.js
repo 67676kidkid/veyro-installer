@@ -16,7 +16,8 @@ Veyro.Store = (() => {
       greenAccentIntensity: 1, // 0.6 – 1.4
       demoMode: false,         // real hardware detection is the default
       privacyTelemetry: false,
-      auroraTheme: false       // premium-only visual theme
+      auroraTheme: false,      // premium-only visual theme
+      accentColor: ''          // UI Designer — custom accent (empty = Veyro Green)
     }
   };
 
@@ -60,9 +61,13 @@ Veyro.Store = (() => {
     const root = document.documentElement;
     root.style.setProperty('--accent-strength', s.greenAccentIntensity);
     root.style.setProperty('--anim', s.animationIntensity);
-    const f = s.greenAccentIntensity; // 0.6 – 1.4
-    const clamp = (v) => Math.round(Math.min(255, Math.max(0, v)));
-    root.style.setProperty('--accent', `rgb(${clamp(57 * f)},${clamp(255 * f)},${clamp(136 * f)})`);
+    if (s.accentColor) {
+      root.style.setProperty('--accent', s.accentColor);
+    } else {
+      const f = s.greenAccentIntensity; // 0.6 – 1.4
+      const clamp = (v) => Math.round(Math.min(255, Math.max(0, v)));
+      root.style.setProperty('--accent', `rgb(${clamp(57 * f)},${clamp(255 * f)},${clamp(136 * f)})`);
+    }
     root.style.setProperty('--anim-speed', `${(0.24 * (1.5 - s.animationIntensity) + 0.05).toFixed(2)}s`);
     document.body.classList.toggle('veyro-demo', !!s.demoMode);
     const prem = !!(window.Veyro && Veyro.License && Veyro.License.isPremium());
