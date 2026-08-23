@@ -92,8 +92,18 @@ Veyro.Account = (() => {
   }
 
   function register(name, email, pass) {
-    return api('/api/auth/register', 'POST', { name: name || 'Player', email, password: pass }).then(d => {
-      if (d && d.ok && d.token) { setToken(d.token); return me().then(u => u ? { ok: true, user: u } : { ok: false, msg: 'Account could not be loaded.' }); }
+    const devId = deviceId();
+    return api('/api/auth/register', 'POST', { name: name || 'Player', email, password: pass, deviceId: devId }).then(d => {
+      if (d && d.ok && d.token) {
+        /* free 3h trial key is auto-granted & activated server-side — persist it locally so premium shows instantly */
+        const finish = (extra) => me().then(u => u ? Object.assign({ ok: true, user: u }, extra || {}) : Object.assign({ ok: false, msg: 'Account could not be loaded.' }, extra || {}));
+        if (d.gift && d.gift.code && window.Veyro && Veyro.License) {
+          return Veyro.License.activate(d.gift.code)
+            .catch(() => ({ ok: false }))
+            .then(() => finish({ gift: d.gift }));
+        }
+        return finish({ gift: d.gift || null });
+      }
       return { ok: false, msg: (d && d.msg) || 'Registration failed.' };
     });
   }

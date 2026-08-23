@@ -1878,7 +1878,11 @@ const rowCfg = (title, desc, control) => {
         const pass = pInp.value;
         if (!email || !pass) { Veyro.toast('Account', 'Enter an email and password first.', 'warn'); return; }
         A.register('', email, pass).then(r => {
-          if (r.ok) { Veyro.toast('Account created', 'Welcome, ' + r.user.name + '!', 'good'); reRender(); }
+          if (r.ok) {
+            if (r.gift && r.gift.code) Veyro.toast('FREE 3-hour trial activated!', 'Thanks for registering — premium is live until ' + new Date(r.gift.expiresAt).toLocaleTimeString() + '.', 'good');
+            else Veyro.toast('Account created', 'Welcome, ' + r.user.name + '!', 'good');
+            reRender();
+          }
           else Veyro.toast('Registration failed', r.msg || 'Could not create the account.', 'error');
         });
       };

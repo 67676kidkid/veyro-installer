@@ -211,6 +211,12 @@ function createGhDb() {
     await loading.catch(() => {});
     loaded = true;
   }
+  /* force refetch from GitHub — used when a warm instance may hold stale data
+     (e.g. password changed by another instance via the admin panel) */
+  async function forceReload() {
+    loaded = false; loading = null; versionSha = null;
+    await ensureLoaded();
+  }
   function save() {
     if (!loaded) return;
     const snap = JSON.stringify(data);
@@ -227,7 +233,7 @@ function createGhDb() {
       }
     }).catch(() => {});
   }
-  return { data, save, file: 'github:' + owner + '/' + repo + '/' + filePath, ensureLoaded };
+  return { data, save, file: 'github:' + owner + '/' + repo + '/' + filePath, ensureLoaded, forceReload };
 }
 
 /* ---------------- auth helpers ---------------- */
@@ -492,20 +498,50 @@ function createServer(opts = {}) {
     data.users.push(user);
     const session = { token: newToken(), userId: user.id, createdAt: Date.now() };
     data.sessions.push(session);
+
+    /* ---- free 3-hour trial: once per device ---- */
+    let gift = null;
+    const deviceId = typeof body.deviceId === 'string' ? body.deviceId.trim().slice(0, 120) : '';
+    const alreadyUsed = deviceId
+      ? data.keys.some(k => k.free3h && k.deviceId === deviceId && k.activatedBy !== user.id)
+      : false;
+    if (!alreadyUsed) {
+      const expAt = Date.now() + 3 * 3600000;
+      const code = buildKey(expAt);
+      data.keys.unshift({
+        id: crypto.randomBytes(6).toString('hex'),
+        code,
+        durationId: 'h3',
+        durationLabel: '3 HOURS · FREE TRIAL',
+        hours: 3,
+        createdAt: Date.now(),
+        expiresAt: expAt,
+        free3h: true,
+        revoked: false, revokedAt: null,
+        activatedBy: user.id, activatedAt: Date.now(),
+        deviceId: deviceId || null
+      });
+      gift = { code, expiresAt: expAt };
+    }
     db.save();
     try { sendWelcomeEmail(user.email, user.name, true); } catch (e) { /* never block signup */ }
-    return { status: 200, body: { ok: true, token: session.token, user: publicUser(user), admin: user.admin, message: isFirst ? 'First account — you are the admin.' : 'Welcome!' } };
+    return { status: 200, body: { ok: true, token: session.token, user: publicUser(user), admin: user.admin, gift, message: isFirst ? 'First account — you are the admin.' : (gift ? 'Welcome! A FREE 3-hour key is already on your account.' : 'Welcome! (Free PC trial was already used on this device.)') } };
   }
 
-  function postLogin(body, ip) {
+  async function postLogin(body, ip) {
     if (!body || typeof body.email !== 'string' || typeof body.password !== 'string') {
       return { status: 400, body: { ok: false, error: 'email and password are required.' } };
     }
     if (!rateCheck(ip)) return { status: 429, body: { ok: false, error: 'Too many attempts. Try again in a moment.' } };
     const email = body.email.trim().toLowerCase();
-    const user = data.users.find(u => u.email === email);
-    const pwHash = user ? hashPassword(body.password, user.salt) : hashPassword(body.password, newSalt());
-    if (!user || pwHash !== user.passHash) {
+    let user = data.users.find(u => u.email === email);
+    const verify = (u) => !!u && hashPassword(body.password, u.salt) === u.passHash;
+    if (!verify(user) && typeof db.forceReload === 'function') {
+      /* warm instance may hold stale users after a password change elsewhere — refetch once */
+      try { await db.forceReload(); } catch (e) { /* keep going */ }
+      user = data.users.find(u => u.email === email);
+    }
+    if (!verify(user)) {
       rateHit(ip);
       return { status: 401, body: { ok: false, error: 'Wrong email or password.' } };
     }
@@ -536,6 +572,14 @@ function createServer(opts = {}) {
     if (k.revoked) return { status: 403, body: { ok: false, error: 'This key was revoked by the administrator.', status: 'REVOKED' } };
     if (k.expiresAt !== null && k.expiresAt <= now) {
       return { status: 400, body: { ok: false, error: 'This key expired on ' + new Date(k.expiresAt).toLocaleString() + '.', status: 'EXPIRED' } };
+    }
+    if (k.free3h) {
+      const devId = typeof body.deviceId === 'string' ? body.deviceId.slice(0, 120) : '';
+      const trialUsed = data.keys.some(x => x.free3h && x.activatedBy && x.activatedBy !== user.id
+        && ((devId && x.deviceId === devId) || (k.deviceId && x.deviceId === k.deviceId)));
+      if (trialUsed) {
+        return { status: 403, body: { ok: false, error: 'The free PC trial has already been used on this device.', status: 'TRIAL_USED' } };
+      }
     }
     if (k.activatedBy && k.activatedBy !== user.id) {
       return { status: 409, body: { ok: false, error: 'This key is already activated by another account.', status: 'IN_USE' } };
@@ -724,6 +768,19 @@ function createServer(opts = {}) {
     return { status: 200, body: { ok: true, user: publicUser(u) } };
   }
 
+  function postAdminPassword(body, user) {
+    if (!user.admin) return { status: 403, body: { ok: false, error: 'Admin only.' } };
+    const u = data.users.find(x => x.id === String((body && body.id) || ''));
+    if (!u) return { status: 404, body: { ok: false, error: 'User not found.' } };
+    const pw = typeof body.newPassword === 'string' ? body.newPassword : '';
+    if (pw.length < 6) return { status: 400, body: { ok: false, error: 'New password must be at least 6 characters.' } };
+    u.salt = newSalt();
+    u.passHash = hashPassword(pw, u.salt);
+    data.sessions = data.sessions.filter(s => s.userId !== u.id);
+    db.save();
+    return { status: 200, body: { ok: true, user: publicUser(u), message: 'Password set. All their sessions were logged out.' } };
+  }
+
   function getMyKeys(body, user) {
     const mine = data.keys
       .filter(k => k.activatedBy === user.id)
@@ -740,6 +797,11 @@ function createServer(opts = {}) {
     if (p === '/') p = '/index.html';
     p = p.replace(/^\/+/, '');
     if (p.includes('..') || p.includes('\\')) { res.writeHead(403); res.end('Forbidden'); return; }
+    /* clean URLs: /login → login.html (known pages only) */
+    if (!path.extname(p)) {
+      const known = ['login', 'register', 'dashboard', 'admin', 'settings', 'docs', 'index', 'beta', 'reviews'];
+      if (known.includes(p.toLowerCase())) p = p.toLowerCase() + '.html';
+    }
     const file = path.join(siteDir, p);
     if (!file.startsWith(siteDir)) { res.writeHead(403); res.end('Forbidden'); return; }
     fs.readFile(file, (err, buf) => {
@@ -835,6 +897,7 @@ function createServer(opts = {}) {
       if (route === 'admin/keys/unrevoke' && user) return await handle('POST', postUnrevoke);
       if (route === 'admin/users' && user) return await handle('GET', getAdminUsers);
       if (route === 'admin/users/role' && user) return await handle('POST', postRole);
+      if (route === 'admin/users/password' && user) return await handle('POST', postAdminPassword);
       if (route === 'health') { json(res, 200, { ok: true, name: 'Veyro Backend', port: opts.port || 9175, db: db.file, version: 1 }); return true; }
       if (route === '_debug') {
         json(res, 200, {
