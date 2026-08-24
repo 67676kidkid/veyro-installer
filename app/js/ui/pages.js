@@ -1486,6 +1486,40 @@ search.addEventListener('input', () => {
     fpsRow.appendChild(el('div', 'flex-1'));
     fpsRow.appendChild(U.chip('+' + (freeMin + premMin) + '-' + (freeMax + premMax) + ' FPS TOTAL', 'green'));
     fpsCard.appendChild(fpsRow);
+
+    /* Apply All button */
+    const applyAllRow = el('div', 'row mt-12');
+    applyAllRow.style.gap = '10px';
+    const applyAllBtn = U.btn('APPLY ALL OPTIMIZATIONS', true, { ic: 'bolt', arrow: true, onClick: async () => {
+      const prem = Veyro.License.isPremium();
+      const toApply = OPT_TWEAKS.filter(t => {
+        if (Veyro.Prefs.isApplied(t.id)) return false;
+        if (t.prem && !prem) return false;
+        return true;
+      });
+      if (!toApply.length) { Veyro.toast('All optimizations applied', 'Everything is already active.', 'good'); return; }
+      applyAllBtn.disabled = true;
+      applyAllBtn.textContent = 'APPLYING 0/' + toApply.length + '...';
+      let done = 0, failed = 0;
+      for (const t of toApply) {
+        try {
+          await Veyro.HardwareAgent.setOptimization(t.id, true);
+          Veyro.Prefs.markApplied(t.id);
+          done++;
+        } catch (e) { failed++; }
+        applyAllBtn.textContent = 'APPLYING ' + done + '/' + toApply.length + '...';
+      }
+      applyAllBtn.disabled = false;
+      applyAllBtn.textContent = 'APPLY ALL OPTIMIZATIONS';
+      const totalGain = toApply.reduce((s, t) => s + (t.fps ? t.fps[1] : 0), 0);
+      Veyro.toast('Boost complete!', done + ' optimizations applied' + (failed ? ', ' + failed + ' failed' : '') + ' — up to +' + totalGain + ' FPS.', 'good');
+      Veyro.Router.go('optcenter');
+    } });
+    applyAllRow.appendChild(applyAllBtn);
+    const freeCount = OPT_TWEAKS.filter(t => t.free && !Veyro.Prefs.isApplied(t.id)).length;
+    applyAllRow.appendChild(el('span', 'meta', freeCount + ' free tweaks ready — premium unlocks all 50'));
+    fpsCard.appendChild(applyAllRow);
+
     c.appendChild(fpsCard);
 
     return { destroy() { c.innerHTML = ''; } };

@@ -87,7 +87,7 @@ Veyro.icon = (name, size) => {
 /* ---------- external links ---------- */
 
 /* Discord server — the place where keys are sold. Replace with your real invite link. */
-Veyro.DISCORD = 'https://discord.gg/svbCkjsZzy';
+Veyro.DISCORD = 'https://discord.gg/BaYg9Cz64y';
 
 /* ---------- toasts ---------- */
 

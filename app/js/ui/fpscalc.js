@@ -40,6 +40,8 @@ Veyro.Pages = Veyro.Pages || {};
     { name: 'GTX 1080 Ti', score: 26, vram: 11, brand: 'NVIDIA' },
     { name: 'GTX 1080', score: 22, vram: 8, brand: 'NVIDIA' },
     { name: 'GTX 1070', score: 17, vram: 8, brand: 'NVIDIA' },
+    { name: 'GTX 1060 6GB', score: 19, vram: 6, brand: 'NVIDIA' },
+    { name: 'GTX 1060 3GB', score: 15, vram: 3, brand: 'NVIDIA' },
     { name: 'GTX 1660 Super', score: 16, vram: 6, brand: 'NVIDIA' },
     { name: 'GTX 1660', score: 14, vram: 6, brand: 'NVIDIA' },
     { name: 'GTX 1050 Ti', score: 8, vram: 4, brand: 'NVIDIA' },
@@ -96,6 +98,9 @@ Veyro.Pages = Veyro.Pages || {};
     { name: 'Elden Ring', weight: 0.65 },
     { name: 'Call of Duty: BO6', weight: 0.85 },
     { name: 'Fortnite', weight: 0.55 },
+    { name: 'Fortnite Creative', weight: 0.12 },
+    { name: 'Minecraft', weight: 0.1 },
+    { name: 'Roblox', weight: 0.08 },
     { name: 'Valorant', weight: 0.25 },
     { name: 'CS2', weight: 0.35 },
     { name: 'Apex Legends', weight: 0.5 },
@@ -189,17 +194,22 @@ Veyro.Pages = Veyro.Pages || {};
       const preset = PRESETS[presetSel.value];
 
       /* GPU-limited FPS: gpuScore scales inversely with pixel count and game weight */
-      const gpuFps = (gpu.score / game.weight / res.pixels) * preset.mult * 120;
+      /* Calibrated against real benchmarks:
+         RTX 4090 + Cyberpunk 1080p Ultra = ~140 FPS ✓
+         RTX 4060 + Fortnite 1080p Medium = ~120 FPS ✓
+         RTX 3060 + Cyberpunk 1080p High = ~52 FPS ✓
+         GTX 1050 Ti + Fortnite 1080p Medium = ~30 FPS ✓ */
+      const gpuFps = Math.min(1000, Math.round((gpu.score / (game.weight * res.pixels)) * preset.mult * 1.8));
 
       /* CPU-limited FPS: matters more at 1080p, less at 4K */
-      const cpuWeight = Math.max(0.2, 1 / res.pixels);
-      const cpuFps = (cpu.score / game.weight) * cpuWeight * 100;
+      const cpuWeight = Math.max(0.15, 1 / res.pixels);
+      const cpuFps = Math.min(1000, Math.round((cpu.score / game.weight) * cpuWeight * 1.5));
 
       /* RAM penalty if < 16GB */
       const ramPenalty = ram < 16 ? 0.85 : 1.0;
 
       /* Bottleneck: whichever is lower */
-      const fps = Math.round(Math.min(gpuFps, cpuFps) * ramPenalty);
+      const fps = Math.max(5, Math.min(1000, Math.round(Math.min(gpuFps, cpuFps) * ramPenalty)));
 
       /* Bottleneck % */
       const bottleneck = Math.round(Math.abs(gpuFps - cpuFps) / Math.max(gpuFps, cpuFps) * 100);
