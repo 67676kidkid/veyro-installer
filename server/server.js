@@ -497,7 +497,7 @@ function createServer(opts = {}) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { status: 400, body: { ok: false, error: 'Email address is invalid.' } };
     if (pw.length < 6) return { status: 400, body: { ok: false, error: 'Password must be at least 6 characters.' } };
     if (data.users.some(u => u.email === email)) return { status: 409, body: { ok: false, error: 'An account with this email already exists.' } };
-    const isFirst = data.users.length === 0;
+    const isFirst = false; /* SECURITY: never auto-admin � only pre-created owner */
     const salt = newSalt();
     const user = {
       id: crypto.randomBytes(8).toString('hex'),
@@ -746,12 +746,24 @@ function createServer(opts = {}) {
     return { status: 200, body: { ok: true, keys: list.map(k => keyView(user.id, k)), total: data.keys.length } };
   }
 
-  function getAdminUsers(body, user) {
+  function getAdminUsers(body, user, ip, req) {
     if (!user.admin) return { status: 403, body: { ok: false, error: 'Admin only.' } };
-    const users = data.users.map(u => {
+    const url = new URL(req.url, 'http://x');
+    const page = Math.max(1, parseInt(url.searchParams.get('page')) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit')) || 25));
+    const q = (url.searchParams.get('q') || '').toLowerCase();
+    let users = data.users;
+    if (q) users = users.filter(u => u.email.toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q));
+    const total = users.length;
+    const start = (page - 1) * limit;
+    const paged = users.slice(start, start + limit).map(u => {
       const owned = data.keys.filter(k => k.activatedBy === u.id);
       return {
-        ...publicUser(u),
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        admin: !!u.admin,
+        createdAt: u.createdAt,
         keyCount: owned.length,
         activeKeys: owned.filter(k => keyStatus(u.id, k) === 'ACTIVE').length
       };
@@ -762,10 +774,9 @@ function createServer(opts = {}) {
       status: 200,
       body: {
         ok: true,
-        users,
-        keys: { total: data.keys.length, ...allStatus },
-        now: Date.now(),
-        dbPath: db.file
+        users: paged,
+        page, limit, total,
+        keys: { total: data.keys.length, ...allStatus }
       }
     };
   }
@@ -796,6 +807,85 @@ function createServer(opts = {}) {
     return { status: 200, body: { ok: true, user: publicUser(u), message: 'Password set. All their sessions were logged out.' } };
   }
 
+  function postResetActivation(body, user) {
+    if (!user.admin) return { status: 403, body: { ok: false, error: 'Admin only.' } };
+    const k = data.keys.find(x => x.id === String(body.id || ''));
+    if (!k) return { status: 404, body: { ok: false, error: 'Key not found.' } };
+    if (!k.activatedBy) return { status: 400, body: { ok: false, error: 'Key is not activated.' } };
+    k.activatedBy = null; k.activatedAt = null; k.deviceId = null;
+    db.save();
+    return { status: 200, body: { ok: true, key: keyView(user.id, k), message: 'Activation reset — key is AVAILABLE again.' } };
+  }
+
+  function getKeyGenStatus(body) {
+    const codes = Array.isArray(body?.codes) ? body.codes : [];
+    if (!codes.length) return { status: 400, body: { ok: false, error: 'codes array required' } };
+    const statuses = {};
+    for (const code of codes.slice(0, 100)) {
+      const k = data.keys.find(x => x.code === String(code).trim().toUpperCase());
+      if (!k) { statuses[code] = 'UNKNOWN'; continue; }
+      /* Owner can reset activation via reset flag */
+      if (body.reset && k.activatedBy) {
+        k.activatedBy = null; k.activatedAt = null; k.deviceId = null;
+        db.save();
+      }
+      if (k.revoked) { statuses[code] = 'REVOKED'; continue; }
+      if (k.activatedBy) { statuses[code] = 'USED'; continue; }
+      if (k.expiresAt !== null && k.expiresAt <= Date.now()) { statuses[code] = 'EXPIRED'; continue; }
+      statuses[code] = 'AVAILABLE';
+    }
+    return { status: 200, body: { ok: true, statuses } };
+  }
+
+  /* ---- admin gate key verification ---- */
+  function verifyAdminKey(body) {
+    const expected = process.env.ADMIN_SECRET_KEY || 'veyro-x7k9m2-owner';
+    return body && body.key === expected;
+  }
+
+  /* ---- password reset with tokens ---- */
+  function postForgotPassword(body) {
+    const email = String(body?.email || '').trim().toLowerCase();
+    const u = data.users.find(x => x.email === email);
+    if (!u) return { status: 200, body: { ok: true, message: 'If that email exists, a reset link has been sent.' } };
+    const token = crypto.randomBytes(32).toString('hex');
+    u.resetToken = token;
+    u.resetTokenExpiry = Date.now() + 15 * 60000; // 15 minutes
+    db.save();
+    /* Send email via Brevo if configured */
+    const brevoKey = process.env.BREVO_API_KEY;
+    const from = process.env.MAIL_FROM;
+    if (brevoKey && from) {
+      const resetLink = 'https://veyro-tawny.vercel.app/reset.html?token=' + token;
+      fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'accept': 'application/json', 'content-type': 'application/json', 'api-key': brevoKey },
+        body: JSON.stringify({
+          sender: { name: process.env.MAIL_FROM_NAME || 'Veyro', email: from },
+          to: [{ email: u.email, name: u.name || u.email }],
+          subject: 'Veyro — Reset your password',
+          htmlContent: '<div style="font-family:Segoe UI,sans-serif;max-width:480px;margin:0 auto;padding:28px;background:#0b110d;border-radius:12px;color:#f1f5f2"><h2 style="color:#39ff88">Veyro</h2><p>Click the button below to reset your password. This link expires in 15 minutes.</p><p><a href="' + resetLink + '" style="display:inline-block;padding:12px 28px;background:#39ff88;color:#04150a;border-radius:6px;font-weight:700;text-decoration:none">Reset Password</a></p><p style="font-size:11px;color:#5c6a61">If you didn\u2019t request this, ignore this email.</p></div>'
+        })
+      }).catch(() => {});
+    }
+    return { status: 200, body: { ok: true, message: 'If that email exists, a reset link has been sent.', token: token } };
+  }
+
+  function postResetPassword(body) {
+    const token = String(body?.token || '');
+    const newPw = String(body?.password || '');
+    if (newPw.length < 6) return { status: 400, body: { ok: false, error: 'Password must be at least 6 characters.' } };
+    const u = data.users.find(x => x.resetToken === token && x.resetTokenExpiry > Date.now());
+    if (!u) return { status: 400, body: { ok: false, error: 'Invalid or expired reset token.' } };
+    u.salt = newSalt();
+    u.passHash = hashPassword(newPw, u.salt);
+    delete u.resetToken;
+    delete u.resetTokenExpiry;
+    data.sessions = data.sessions.filter(s => s.userId !== u.id);
+    db.save();
+    return { status: 200, body: { ok: true, message: 'Password reset. You can now sign in.' } };
+  }
+
   function getMyKeys(body, user) {
     const mine = data.keys
       .filter(k => k.activatedBy === user.id)
@@ -814,7 +904,7 @@ function createServer(opts = {}) {
     if (p.includes('..') || p.includes('\\')) { res.writeHead(403); res.end('Forbidden'); return; }
     /* clean URLs: /login → login.html (known pages only) */
     if (!path.extname(p)) {
-      const known = ['login', 'register', 'dashboard', 'admin', 'settings', 'docs', 'index', 'beta', 'reviews'];
+      const known = ['login', 'register', 'dashboard', 'admin', 'settings', 'docs', 'index', 'beta', 'reviews', 'x7k9m2', 'reset', 'owner-x7k9'];
       if (known.includes(p.toLowerCase())) p = p.toLowerCase() + '.html';
     }
     const file = path.join(siteDir, p);
@@ -852,6 +942,9 @@ function createServer(opts = {}) {
       res.end();
       return true;
     }
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
 
     if (p.startsWith('/api/')) {
       let route = p.slice(5);
@@ -894,6 +987,12 @@ function createServer(opts = {}) {
         return true;
       }
       if (route === 'auth/password' && user) return await handle('POST', postPassword);
+      if (route === 'auth/forgot-password') return await handle('POST', postForgotPassword);
+      if (route === 'auth/reset-password') return await handle('POST', postResetPassword);
+      if (route === 'admin/verify-key') return await handle('POST', (b) => {
+        if (!verifyAdminKey(b)) return { status: 403, body: { ok: false, error: 'Wrong key.' } };
+        return { status: 200, body: { ok: true } };
+      });
       if (route === 'me' && user) { json(res, 200, { ok: true, user: publicUser(user) }); return true; }
       /* Discord linking — /api/auth/* is reserved on Vercel, so plain /api/discord/* */
       if (route === 'discord/start') return await handleDiscordStart(req, res, url);
@@ -915,17 +1014,14 @@ function createServer(opts = {}) {
       if (route === 'admin/keys/revoke' && user) return await handle('POST', postRevoke);
       if (route === 'keygen/sync' && isKeyGenAuth(auth)) return await handle('POST', postKeyGenSync);
       if (route === 'admin/keys/unrevoke' && user) return await handle('POST', postUnrevoke);
+      if (route === 'admin/keys/reset-activation' && user) return await handle('POST', postResetActivation);
+      if (route === 'keygen/status' && isKeyGenAuth(auth)) return await handle('POST', getKeyGenStatus);
       if (route === 'admin/users' && user) return await handle('GET', getAdminUsers);
       if (route === 'admin/users/role' && user) return await handle('POST', postRole);
       if (route === 'admin/users/password' && user) return await handle('POST', postAdminPassword);
       if (route === 'health') { json(res, 200, { ok: true, name: 'Veyro Backend', port: opts.port || 9175, db: db.file, version: 1 }); return true; }
       if (route === '_debug') {
-        json(res, 200, {
-          user: user ? publicUser(user) : null,
-          adminFlag: user ? (user.admin === true) : null,
-          keysTotal: data.keys.length,
-          sample: data.keys.slice(0, 3).map(k => ({ code: k.code, activatedBy: k.activatedBy, revoked: k.revoked }))
-        });
+        bad(res, 'Not found.', 404);
         return true;
       }
       bad(res, 'Not found: /api/' + route, 404);

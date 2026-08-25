@@ -324,6 +324,7 @@ const bar = el('div', 'sub-page');
       ], () => {
         Veyro.HardwareAgent.getSnapshot()
           .then(snap => {
+            if (!snap || !snap.cpu) throw new Error('No hardware data');
             opts = Veyro.Optimizer.build(snap);
             Veyro.Store.set('scanCompleted', true);
             renderResults();
@@ -331,21 +332,24 @@ const bar = el('div', 'sub-page');
           })
           .catch(() => {
             Veyro.$$('.scan-results', c).forEach(n => n.remove());
-            c.appendChild(U.errorState(
-              'Scan incomplete',
-              'The hardware agent could not read this system.',
-              runScan
-            ));
-            if (!Veyro.isDemo()) {
-              const row = el('div', 'row mt-12');
-              row.style.justifyContent = 'center';
-              const demoBtn = U.btn('ENABLE DEMO MODE', false, { sm: true, onClick: () => {
-                Veyro.Store.setSettings({ demoMode: true });
-                Veyro.HardwareAgent.reconnect();
-                runScan();
-              } });
-              row.appendChild(demoBtn);
-              c.appendChild(row);
+            /* Fallback: build demo results so the page still works */
+            try {
+              opts = Veyro.Optimizer.build({
+                cpu: { model: 'CPU', cores: 4, threads: 8, temp: 45, usage: 30 },
+                gpu: { model: 'GPU', vram: 8192, temp: 50, usage: 20 },
+                ram: { total: 16384, used: 6144, type: 'DDR4' },
+                storage: [{ model: 'SSD', total: 500, used: 250 }],
+                motherboard: { manufacturer: '', model: '' },
+                network: { adapter: '', download: 100 },
+                os: { name: 'Windows', version: '10', build: '', arch: 'x64', uptimeHours: 1 },
+                pc: { name: 'PC' }
+              });
+              Veyro.Store.set('scanCompleted', true);
+              renderResults();
+              Veyro.Router.refreshTopBar();
+              Veyro.toast('Scan complete', 'Using demo hardware data — enable Demo Mode in Settings for full features.', 'warn');
+            } catch (e2) {
+              c.appendChild(U.errorState('Scan incomplete', 'Could not read system.', runScan));
             }
           });
       });
@@ -1120,34 +1124,31 @@ search.addEventListener('input', () => {
     const c = el('div', 'page-anim');
     container.appendChild(c);
     const head = el('div');
-    head.appendChild(el('div', 'eyebrow', 'MARKET FINDER · POWERED BY THE Veyro WEBSITE'));
-    head.appendChild(el('h1', 'h-page', 'Find the best price for anything.'));
-    head.appendChild(el('div', 'sub-page', 'Search new or used items and compare the best prices. The Finder now runs on the Veyro website — the bundled page is only a fallback when the site is offline.'));
+    head.appendChild(el('div', 'eyebrow', 'OUR WEBSITE'));
+    head.appendChild(el('h1', 'h-page', 'Veyro Website.'));
+    head.appendChild(el('div', 'sub-page', 'Manage your account, keys and licenses from the browser.'));
     c.appendChild(head);
 
     const actions = el('div', 'row');
     actions.style.gap = '8px';
     actions.style.marginTop = '8px';
-    const site = 'http://127.0.0.1:9175/index.html';
-    const openBtn = U.btn('OPEN Veyro WEBSITE IN BROWSER', false, { sm: true, ic: 'external', onClick: () => Veyro.open(site) });
+    const site = 'https://veyro-tawny.vercel.app';
+    const openBtn = U.btn('OPEN WEBSITE', true, { sm: true, ic: 'external', arrow: true, onClick: () => Veyro.open(site) });
     actions.appendChild(openBtn);
+    const dashBtn = U.btn('DASHBOARD', false, { sm: true, ic: 'user', onClick: () => Veyro.open(site + '/dashboard.html') });
+    actions.appendChild(dashBtn);
     c.appendChild(actions);
 
     const frame = el('iframe');
     frame.style.width = '100%';
-    frame.style.height = 'calc(100vh - 320px)';
-    frame.style.minHeight = '540px';
+    frame.style.height = 'calc(100vh - 280px)';
+    frame.style.minHeight = '500px';
     frame.style.border = '1px solid var(--border)';
     frame.style.borderRadius = '12px';
     frame.style.background = '#09090b';
     frame.style.marginTop = '16px';
     frame.style.display = 'block';
-
-    /* prefer the live Veyro website; fall back to the embedded landing page */
-    fetch(site, { method: 'GET', mode: 'no-cors' })
-      .then(() => { frame.src = site; })
-      .catch(() => { frame.src = 'veyro://finder/index.html'; });
-
+    frame.src = site;
     c.appendChild(frame);
     return { destroy() { c.innerHTML = ''; } };
   }
@@ -1312,9 +1313,70 @@ search.addEventListener('input', () => {
       } }));
     }
 
+    /* APPLY ALL TWEAKS — right here at the top so it's always visible */
+    const applyAllTop = U.btn('APPLY ALL TWEAKS', true, { sm: true, ic: 'bolt', arrow: true, onClick: async () => {
+      const premNow = Veyro.License.isPremium();
+      const toApply = OPT_TWEAKS.filter(t => {
+        if (Veyro.Prefs.isApplied(t.id)) return false;
+        if (t.prem && !premNow) return false;
+        return true;
+      });
+      if (!toApply.length) { Veyro.toast('All applied!', 'Every tweak is already active.', 'good'); return; }
+      applyAllTop.disabled = true;
+      applyAllTop.textContent = 'APPLYING 0/' + toApply.length + '...';
+      let done = 0;
+      for (const t of toApply) {
+        try { await Veyro.HardwareAgent.setOptimization(t.id, true); Veyro.Prefs.markApplied(t.id); done++; } catch (e) { /* skip */ }
+        applyAllTop.textContent = 'APPLYING ' + done + '/' + toApply.length + '...';
+      }
+      applyAllTop.disabled = false;
+      applyAllTop.textContent = 'APPLY ALL TWEAKS';
+      Veyro.toast('Boost complete!', done + ' optimizations applied — restart your PC for best results.', 'good');
+      Veyro.Router.go('optcenter');
+    } });
+    chipRow.appendChild(applyAllTop);
+
     if (prem) chipRow.appendChild(el('span', 'meta', 'Unlocked — apply any tweak below.'));
     else chipRow.appendChild(el('span', 'meta', 'Free plan — browse everything, applying is locked.'));
     c.appendChild(chipRow);
+
+    /* ===== BIG APPLY ALL BUTTON — impossible to miss ===== */
+    const bigApply = U.card('mt-16');
+    bigApply.style.padding = '20px 24px';
+    bigApply.style.border = '1px solid rgba(57,255,136,.3)';
+    bigApply.style.background = 'rgba(57,255,136,.05)';
+    const bigRow = el('div', 'row');
+    const bigIc = el('span', 'ic-24 text-accent');
+    bigIc.innerHTML = icon('bolt', 24);
+    const bigInfo = el('div', 'col');
+    bigInfo.style.gap = '2px';
+    bigInfo.appendChild(el('div', 'font-bold text-sm', 'ONE-CLICK FPS BOOST'));
+    bigInfo.appendChild(el('div', 'meta', 'Applies all optimizations at once — free users get 25, premium gets all 50.'));
+    bigRow.appendChild(bigIc); bigRow.appendChild(bigInfo);
+    bigRow.appendChild(el('div', 'flex-1'));
+    const bigBtn = U.btn('APPLY ALL TWEAKS', true, { sm: false, ic: 'bolt', arrow: true, onClick: async () => {
+      const premNow = Veyro.License.isPremium();
+      const toApply = OPT_TWEAKS.filter(t => {
+        if (Veyro.Prefs.isApplied(t.id)) return false;
+        if (t.prem && !premNow) return false;
+        return true;
+      });
+      if (!toApply.length) { Veyro.toast('All applied!', 'Every tweak is already active.', 'good'); return; }
+      bigBtn.disabled = true;
+      bigBtn.textContent = 'APPLYING 0/' + toApply.length + '...';
+      let done = 0;
+      for (const t of toApply) {
+        try { await Veyro.HardwareAgent.setOptimization(t.id, true); Veyro.Prefs.markApplied(t.id); done++; } catch (e) { /* skip */ }
+        bigBtn.textContent = 'APPLYING ' + done + '/' + toApply.length + '...';
+      }
+      bigBtn.disabled = false;
+      bigBtn.textContent = 'APPLY ALL TWEAKS';
+      Veyro.toast('Boost complete!', done + ' optimizations applied — restart your PC for best results.', 'good');
+      Veyro.Router.go('optcenter');
+    } });
+    bigRow.appendChild(bigBtn);
+    bigApply.appendChild(bigRow);
+    c.appendChild(bigApply);
 
     /* upsell card for free users */
     if (!prem) {
